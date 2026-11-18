@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "create-centre": "tsx --env-file=.env.local scripts/create-centre.ts",
-    "seed:demo": "tsx --env-file=.env.local scripts/seed-demo.ts"
+    "seed:demo": "tsx --env-file=.env.local scripts/seed-demo.ts",
+    "test:rls": "node --env-file=.env.local ./node_modules/vitest/vitest.mjs run tests/rls"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
