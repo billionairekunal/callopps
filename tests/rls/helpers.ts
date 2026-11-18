@@ -51,3 +51,16 @@ export async function cleanup() {
   for (const id of created) await admin().auth.admin.deleteUser(id);
   if (orgs.length) await admin().from("orgs").delete().in("id", orgs);
 }
+
+export async function makeRow<T extends Record<string, unknown>>(table: string, row: T): Promise<string> {
+  const { data, error } = await admin().from(table).insert(row).select("id").single();
+  if (error) throw error;
+  return data.id as string;
+}
+
+export function makeLead(orgId: string, extra: Record<string, unknown> = {}) {
+  const n = Math.floor(Math.random() * 1e9);
+  return makeRow("leads", {
+    org_id: orgId, phone_enc: "v1:k1:x:y:z", phone_hash: `h${n}`, phone_last4: String(n).slice(-4).padStart(4, "0"), ...extra,
+  });
+}
