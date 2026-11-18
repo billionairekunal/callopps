@@ -21,7 +21,7 @@ export type LeadCtx = {
 };
 
 export const ADMINS: Role[] = ["super_admin", "admin"];
-export const requireAdmin = (c: LeadCtx) => { if (!ADMINS.includes(c.session.role)) throw new AuthError("forbidden"); };
+export const requireAdmin = (c: { session: Session }) => { if (!ADMINS.includes(c.session.role)) throw new AuthError("forbidden"); };
 
 const id = z.string().uuid().nullable().optional();
 export const addLeadSchema = z.object({

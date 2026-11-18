@@ -28,3 +28,8 @@ test("sub-paths inherit access; unknown paths are open to signed-in users", () =
   expect(canAccess("caller", "/crm-setup/users")).toBe(false);
   expect(canAccess("caller", "/forbidden")).toBe(true);
 });
+test("team leaders can open Lead Management but not the import page", () => {
+  expect(canAccess("team_leader", "/leads")).toBe(true);
+  expect(canAccess("team_leader", "/leads/import")).toBe(false);
+  expect(canAccess("admin", "/leads/import")).toBe(true);
+});

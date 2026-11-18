@@ -47,3 +47,4 @@ software_steps_2/
 *.zip
 .superpowers/
 .claude/
+public/_test/

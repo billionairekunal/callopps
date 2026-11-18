@@ -53,7 +53,10 @@ export const NAV: NavSection[] = [
 ];
 
 /** Routes not in the sidebar but role-gated. */
-const EXTRA: { href: string; roles: Role[] }[] = [{ href: "/audit-log", roles: ["super_admin"] }];
+const EXTRA: { href: string; roles: Role[] }[] = [
+  { href: "/audit-log", roles: ["super_admin"] },
+  { href: "/leads/import", roles: ["super_admin", "admin"] },
+];
 
 export const navFor = (role: Role): NavSection[] =>
   NAV.map((s) => ({ ...s, items: s.items.filter((i) => i.roles.includes(role)) })).filter((s) => s.items.length);
@@ -61,7 +64,7 @@ export const navFor = (role: Role): NavSection[] =>
 export const navItem = (href: string) => NAV.flatMap((s) => s.items).find((i) => i.href === href);
 
 export function canAccess(role: Role, pathname: string): boolean {
-  const rule = [...NAV.flatMap((s) => s.items), ...EXTRA].find((i) => pathname === i.href || pathname.startsWith(i.href + "/"));
+  const rule = [...EXTRA, ...NAV.flatMap((s) => s.items)].find((i) => pathname === i.href || pathname.startsWith(i.href + "/"));
   return rule ? rule.roles.includes(role) : true;
 }
 
