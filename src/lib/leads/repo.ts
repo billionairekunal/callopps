@@ -63,3 +63,25 @@ export function importRepo(rls: SupabaseClient, orgId: string): import("./import
 export async function importCtx(session: Session) {
   return { session, keys: () => getOrgKeys(session.orgId), repo: importRepo(await createClient(), session.orgId), audit: logAudit };
 }
+
+export function transferRepo(rls: SupabaseClient, orgId: string): import("./transfer").TransferRepo {
+  const svc = createAdminClient();
+  return {
+    getLeads: async (ids) => {
+      const out: { id: string; assigned_to: string | null }[] = [];
+      for (let i = 0; i < ids.length; i += 200) out.push(...(ok(await rls.from("leads").select("id, assigned_to").in("id", ids.slice(i, i + 200))) ?? []));
+      return out;
+    },
+    profilesByIds: async (ids) => ok(await svc.from("profiles").select("user_id, role, team_id, status").eq("org_id", orgId).in("user_id", ids)) ?? [],
+    updateAssignee: async (ids, toUser) => {
+      // RLS re-checks: team leaders can only assign inside their team.
+      for (let i = 0; i < ids.length; i += 200) ok(await rls.from("leads").update({ assigned_to: toUser }).in("id", ids.slice(i, i + 200)));
+    },
+    insertTransfers: async (rows) => { if (rows.length) ok(await svc.from("lead_transfers").insert(rows)); },
+    insertEvents: async (rows) => { if (rows.length) ok(await svc.from("lead_events").insert(rows)); },
+  };
+}
+
+export async function transferCtx(session: Session) {
+  return { session, repo: transferRepo(await createClient(), session.orgId), audit: logAudit };
+}

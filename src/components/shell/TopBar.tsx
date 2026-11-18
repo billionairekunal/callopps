@@ -1,9 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, Menu, Search, LogOut } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { searchLeads } from "@/app/(app)/search/actions";
+import { StatusBadge } from "@/components/leads/StatusBadge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { navFor, NAV } from "@/lib/nav";
 import { ROLE_LABEL, type Role } from "@/lib/auth/roles";
@@ -16,6 +18,21 @@ export function TopBar({ role, fullName }: { role: Role; fullName: string }) {
   const router = useRouter();
   const [menu, setMenu] = useState(false);
   const [search, setSearch] = useState(false);
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<{ id: string; name: string | null; phone: string; status: string }[]>([]);
+  const seq = useRef(0);
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) { setHits([]); return; }
+    const n = ++seq.current;
+    const t = setTimeout(async () => {
+      const r = await searchLeads(q);
+      if (n === seq.current) setHits(r.ok ? r.data : []);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [query]);
+  const leadHref = (id: string) => (role === "caller" ? `/my-tasks?lead=${id}` : `/leads/${id}`);
+  const pages = navFor(role).flatMap((s) => s.items).filter((i) => i.label.toLowerCase().includes(query.trim().toLowerCase()));
   const page = NAV.flatMap((s) => s.items).find((i) => path === i.href || path.startsWith(i.href + "/"))?.label
     ?? (path.startsWith("/audit-log") ? "Audit Log" : "");
   const initials = fullName.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "U";
@@ -69,18 +86,33 @@ export function TopBar({ role, fullName }: { role: Role; fullName: string }) {
         </SheetContent>
       </Sheet>
 
-      <CommandDialog open={search} onOpenChange={setSearch} title="Global Search" description="Search leads and pages">
-        <CommandInput placeholder="Search leads by name or number, or jump to a page…" />
-        <CommandList>
-          <CommandEmpty>Lead search arrives with Lead Management (phase 2).</CommandEmpty>
-          <CommandGroup heading="Pages">
-            {navFor(role).flatMap((s) => s.items).map((i) => (
-              <CommandItem key={i.href} onSelect={() => { setSearch(false); router.push(i.href); }}>
-                <i.icon className="size-4" />{i.label}
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </CommandList>
+      <CommandDialog open={search} onOpenChange={(o) => { setSearch(o); if (!o) setQuery(""); }} title="Global Search" description="Search leads and pages">
+        <Command shouldFilter={false}>
+          <CommandInput value={query} onValueChange={setQuery} placeholder="Name, full number or last 4 digits…" />
+          <CommandList>
+            <CommandEmpty>{query.trim().length < 2 ? "Type at least 2 letters, or 4 digits." : "No matching leads or pages."}</CommandEmpty>
+            {hits.length > 0 && (
+              <CommandGroup heading="Leads">
+                {hits.map((h) => (
+                  <CommandItem key={h.id} value={h.id} onSelect={() => { setSearch(false); setQuery(""); router.push(leadHref(h.id)); }}>
+                    <span className="flex-1 truncate">{h.name || "Unnamed"}</span>
+                    <span className="font-mono text-xs text-slate-500">{h.phone}</span>
+                    <StatusBadge status={h.status} />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+            {pages.length > 0 && (
+              <CommandGroup heading="Pages">
+                {pages.map((i) => (
+                  <CommandItem key={i.href} value={i.href} onSelect={() => { setSearch(false); setQuery(""); router.push(i.href); }}>
+                    <i.icon className="size-4" />{i.label}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
       </CommandDialog>
     </header>
   );
