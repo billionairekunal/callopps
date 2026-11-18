@@ -36,6 +36,6 @@ export async function login(_: LoginState, form: FormData): Promise<LoginState> 
 export async function logout() {
   await logAudit("auth.logout");
   const supabase = await createClient();
-  await supabase.auth.signOut();
+  await supabase.auth.signOut({ scope: "local" });
   redirect("/login");
 }

@@ -36,3 +36,14 @@ describe("fieldCrypto", () => {
     expect(maskPhone("4321")).toBe("•••• •• 4321");
   });
 });
+
+test("rejects a truncated auth tag", () => {
+  const parts = encryptField("9876543210", k, "k1").split(":");
+  parts[3] = Buffer.from(parts[3], "base64").subarray(0, 4).toString("base64");
+  expect(() => decryptField(parts.join(":"), () => k)).toThrow(/decrypt failed/);
+});
+test("rejects a wrong-length IV", () => {
+  const parts = encryptField("x", k, "k1").split(":");
+  parts[2] = Buffer.alloc(8).toString("base64");
+  expect(() => decryptField(parts.join(":"), () => k)).toThrow(/decrypt failed/);
+});

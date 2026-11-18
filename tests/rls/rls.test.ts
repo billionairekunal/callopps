@@ -3,14 +3,15 @@ import { enabled, admin, makeOrg, makeUser, cleanup, type TestUser } from "./hel
 
 describe.skipIf(!enabled)("RLS", () => {
   let orgA: string, orgB: string;
-  let sa: TestUser, ad: TestUser, caller: TestUser, adB: TestUser, gone: TestUser;
+  let sa: TestUser, ad: TestUser, caller: TestUser, adB: TestUser, gone: TestUser, adNoMfa: TestUser;
 
   beforeAll(async () => {
     orgA = await makeOrg("A"); orgB = await makeOrg("B");
-    sa = await makeUser(orgA, "super_admin");
-    ad = await makeUser(orgA, "admin");
+    sa = await makeUser(orgA, "super_admin", "active", true);
+    ad = await makeUser(orgA, "admin", "active", true);
+    adNoMfa = await makeUser(orgA, "admin");
     caller = await makeUser(orgA, "caller");
-    adB = await makeUser(orgB, "admin");
+    adB = await makeUser(orgB, "admin", "active", true);
     gone = await makeUser(orgA, "admin", "deactivated");
     await admin().from("audit_log").insert({ org_id: orgA, actor_id: sa.id, action: "test.seed" });
   }, 60_000);
@@ -52,11 +53,17 @@ describe.skipIf(!enabled)("RLS", () => {
     expect(r.data!.map((x) => x.action)).toContain("test.seed");
     expect(r.data!.map((x) => x.action)).not.toContain("tampered");
   });
-  test("users insert audit rows only as themselves", async () => {
-    const ok = await caller.client.from("audit_log").insert({ org_id: orgA, actor_id: caller.id, action: "x" });
-    expect(ok.error).toBeNull();
-    const forged = await caller.client.from("audit_log").insert({ org_id: orgA, actor_id: sa.id, action: "x" });
+  test("users cannot write audit rows directly (server writes them)", async () => {
+    const own = await caller.client.from("audit_log").insert({ org_id: orgA, actor_id: caller.id, action: "x" });
+    expect(own.error).not.toBeNull();
+    const forged = await sa.client.from("audit_log").insert({ org_id: orgA, actor_id: sa.id, action: "x" });
     expect(forged.error).not.toBeNull();
+  });
+  test("admin with password only (aal1) gets no data access", async () => {
+    const w = await adNoMfa.client.from("processes").insert({ org_id: orgA, name: "Sneaky" }).select();
+    expect(w.error ?? (w.data?.length === 0 ? "blocked" : null)).not.toBeNull();
+    expect((await adNoMfa.client.from("processes").select("id")).data).toEqual([]);
+    expect((await adNoMfa.client.from("profiles").select("user_id")).data).toHaveLength(1); // own row only
   });
   test("deactivated user sees nothing", async () => {
     const r = await gone.client.from("processes").select("id");
@@ -74,6 +81,6 @@ describe.skipIf(!enabled)("RLS", () => {
   });
   test("caller cannot see other profiles; admin sees org", async () => {
     expect((await caller.client.from("profiles").select("user_id")).data).toHaveLength(1);
-    expect((await ad.client.from("profiles").select("user_id")).data!.length).toBeGreaterThanOrEqual(4);
+    expect((await ad.client.from("profiles").select("user_id")).data!.length).toBeGreaterThanOrEqual(5);
   });
 });

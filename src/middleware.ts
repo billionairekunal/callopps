@@ -1,11 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-
-const PUBLIC = ["/login", "/auth/callback"];
-const needsMfa = (role?: string) => role === "super_admin" || role === "admin";
+import { routeDecision } from "@/lib/auth/route";
+import type { Role } from "@/lib/auth/roles";
 
 export async function middleware(req: NextRequest) {
-  req.headers.set("x-pathname", req.nextUrl.pathname);
   let res = NextResponse.next({ request: req });
   const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: {
@@ -17,30 +15,26 @@ export async function middleware(req: NextRequest) {
       },
     },
   });
-  const path = req.nextUrl.pathname;
-  const go = (to: string) => {
-    if (path === to) return res;
-    const r = NextResponse.redirect(new URL(to, req.url));
-    res.cookies.getAll().forEach((c) => r.cookies.set(c));
-    return r;
-  };
 
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return PUBLIC.includes(path) ? res : go("/login");
-
-  const { data: p } = await supabase.from("profiles").select("role, status").eq("user_id", user.id).maybeSingle();
-  if (!p || p.status !== "active") return path === "/set-password" ? res : go("/not-set-up");
-  if (path === "/set-password") return res;
-
-  if (needsMfa(p.role)) {
-    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (aal?.currentLevel !== "aal2") return go("/mfa");
+  let profile = null, aal = { current: "aal1", next: "aal1" };
+  if (user) {
+    const [{ data: p }, { data: a }] = await Promise.all([
+      supabase.from("profiles").select("role, status").eq("user_id", user.id).maybeSingle(),
+      supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+    ]);
+    profile = p as { role: Role; status: "active" | "deactivated" } | null;
+    aal = { current: a?.currentLevel ?? "aal1", next: a?.nextLevel ?? "aal1" };
   }
-  if (path === "/login" || path === "/mfa" || path === "/not-set-up" || path === "/")
-    return go(p.role === "caller" ? "/my-tasks" : "/reports");
+
+  const d = routeDecision(req.nextUrl.pathname, user?.id ?? null, profile, aal);
+  const withCookies = (r: NextResponse) => { res.cookies.getAll().forEach((c) => r.cookies.set(c)); return r; };
+  if ("redirect" in d) return withCookies(NextResponse.redirect(new URL(d.redirect, req.url)));
+  if ("forbidden" in d) return withCookies(NextResponse.rewrite(new URL("/forbidden", req.url), { status: 403 }));
   return res;
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|webp|ico)$).*)"],
+  // Everything except Next's own static assets runs through auth.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

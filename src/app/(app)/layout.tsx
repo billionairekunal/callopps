@@ -1,13 +1,10 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { loadSession } from "@/lib/auth/session";
 import { decideAccess, AuthError } from "@/lib/auth/roles";
-import { canAccess } from "@/lib/nav";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { TopBar } from "@/components/shell/TopBar";
 import { IdleSignOut } from "@/components/IdleSignOut";
-import { Forbidden } from "@/components/shell/Forbidden";
 
 const ROUTE: Record<string, string> = { unauthenticated: "/login", "not-set-up": "/not-set-up", "aal2 required": "/mfa" };
 
@@ -16,7 +13,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   try { session = decideAccess(await loadSession(), []); }
   catch (e) { if (e instanceof AuthError) redirect(ROUTE[e.reason] ?? "/login"); throw e; }
 
-  const path = (await headers()).get("x-pathname") ?? "/";
   const { data: org } = await (await createClient()).from("orgs").select("idle_timeout_minutes").single();
 
   return (
@@ -25,7 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar role={session.role} fullName={session.fullName} />
         <main className="mx-auto w-full max-w-[1400px] flex-1 p-4 md:p-6">
-          {canAccess(session.role, path) ? children : <Forbidden />}
+          {children}
         </main>
       </div>
       <IdleSignOut minutes={org?.idle_timeout_minutes ?? 30} />

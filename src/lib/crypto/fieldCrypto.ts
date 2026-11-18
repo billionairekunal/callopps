@@ -12,8 +12,10 @@ export function decryptField(blob: string, keyFor: (keyId: string) => Buffer): s
   try {
     const [v, keyId, iv, tag, ct] = blob.split(":");
     if (v !== "v1" || !keyId || !iv || !tag || ct === undefined) throw new Error("format");
-    const d = createDecipheriv("aes-256-gcm", keyFor(keyId), Buffer.from(iv, "base64"));
-    d.setAuthTag(Buffer.from(tag, "base64"));
+    const ivBuf = Buffer.from(iv, "base64"), tagBuf = Buffer.from(tag, "base64");
+    if (ivBuf.length !== 12 || tagBuf.length !== 16) throw new Error("format");
+    const d = createDecipheriv("aes-256-gcm", keyFor(keyId), ivBuf, { authTagLength: 16 });
+    d.setAuthTag(tagBuf);
     return Buffer.concat([d.update(Buffer.from(ct, "base64")), d.final()]).toString("utf8");
   } catch {
     throw new Error("decrypt failed");
