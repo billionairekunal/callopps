@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# callopps
+.env.local
+software_steps/
+software_steps_2/
+*.zip
+.superpowers/
+.claude/
