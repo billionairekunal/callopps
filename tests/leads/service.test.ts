@@ -13,6 +13,7 @@ function ctx(role: Role, over: Partial<LeadRepo> = {}) {
     insertLeads: vi.fn(async (rows: unknown[]) => rows.map((_, i) => `lead-${i}`)),
     insertEvents: vi.fn(async () => {}),
     insertStatusHistory: vi.fn(async () => {}),
+    validAssignees: vi.fn(async (ids: string[]) => ids),
     ...over,
   };
   const audit = vi.fn(async () => {});
@@ -49,4 +50,12 @@ test("writes encrypted row, created event, status history and audit", async () =
   expect(repo.insertEvents).toHaveBeenCalledWith([expect.objectContaining({ lead_id: "lead-0", type: "created", actor_id: "me", org_id: "org" })]);
   expect(repo.insertStatusHistory).toHaveBeenCalledWith([expect.objectContaining({ lead_id: "lead-0", to_status: "new" })]);
   expect(audit).toHaveBeenCalledWith("lead.create", "lead", "lead-0", { manual: true });
+});
+
+test("manual add: phone/email typed into extra fields are encrypted", async () => {
+  const { c, repo } = ctx("admin");
+  await svc.addLead(c, { phone: "9876543210", extra: { "Father Mobile": "9988776655", Note: "x" } });
+  const row = (repo.insertLeads as ReturnType<typeof vi.fn>).mock.calls[0][0][0];
+  expect(row.extra).toEqual({ Note: "x" });
+  expect(JSON.stringify(row)).not.toContain("9988776655");
 });

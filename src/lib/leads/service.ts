@@ -3,6 +3,7 @@ import { AuthError, type Role, type Session } from "@/lib/auth/roles";
 import { blindIndex } from "@/lib/crypto/fieldCrypto";
 import { cleanPhone } from "./phone";
 import { buildLeadRow, type LeadInsert } from "./row";
+import { isContactValue } from "./detect";
 
 type Keys = { keyId: string; dataKey: Buffer; hashKey: Buffer };
 export type EventRow = { org_id: string; lead_id: string; type: string; payload: Record<string, unknown>; actor_id: string };
@@ -12,6 +13,7 @@ export type LeadRepo = {
   insertLeads(rows: LeadInsert[]): Promise<string[]>;
   insertEvents(rows: EventRow[]): Promise<void>;
   insertStatusHistory(rows: StatusRow[]): Promise<void>;
+  validAssignees(ids: string[]): Promise<string[]>;
 };
 export type LeadCtx = {
   session: Session;
@@ -50,12 +52,16 @@ export async function addLead(c: LeadCtx, input: unknown): Promise<{ id: string 
       .find((l) => (l.process_id ?? null) === (d.process_id ?? null));
     if (same) return { duplicateOf: same.id };
   }
-  const extra = Object.fromEntries(Object.entries(d.extra ?? {}).filter(([k, v]) => k.trim() && v.trim()));
+  if (d.assigned_to && !(await c.repo.validAssignees([d.assigned_to])).length) throw new Error("Assign only to an active caller or team leader.");
+  const fields = Object.entries(d.extra ?? {}).filter(([k, v]) => k.trim() && v.trim());
+  // Phones/emails typed into extra fields are encrypted like the main number.
+  const extra = Object.fromEntries(fields.filter(([, v]) => !isContactValue(v)));
+  const secret = Object.fromEntries(fields.filter(([, v]) => isContactValue(v)));
   const row = buildLeadRow({
     phone: phone.primary!, alt: alt?.primary ?? phone.alternate, name: d.name, email: d.email || null, city: d.city, extra,
     process_id: d.process_id, product_id: d.product_id, lead_type_id: d.lead_type_id, assigned_to: d.assigned_to,
     created_by: c.session.userId,
-  }, keys, c.session.orgId, {});
+  }, keys, c.session.orgId, secret);
   const [leadId] = await c.repo.insertLeads([row]);
   const base = { org_id: c.session.orgId, lead_id: leadId, actor_id: c.session.userId };
   await c.repo.insertEvents([{ ...base, type: "created", payload: { via: "manual" } }]);

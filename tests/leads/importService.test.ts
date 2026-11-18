@@ -21,6 +21,7 @@ function ctx(role: Role = "admin") {
     saveMapping: vi.fn(async () => {}),
     getBatch: vi.fn(async () => ({ source_id: "src-1", source_name: "Bank X" })),
     updateBatch: vi.fn(async () => {}),
+    validAssignees: vi.fn(async (ids: string[]) => ids),
     lookups: vi.fn(async () => ({
       processes: [{ id: PROC, name: "SGI" }], products: [{ id: "33333333-3333-4333-8333-333333333333", name: "BBA LLB" }], leadTypes: [],
     })),
@@ -101,5 +102,32 @@ test("checkExisting maps phones to their existing process", async () => {
   const { c, repo } = ctx();
   const { blindIndex } = await import("@/lib/crypto/fieldCrypto");
   (repo.findByPhoneHashes as ReturnType<typeof vi.fn>).mockResolvedValue([{ phone_hash: blindIndex("9876543210", keys.hashKey), process_name: "SGI" }]);
-  expect(await imp.checkExisting(c, ["9876543210", "9123456789"])).toEqual({ "9876543210": { processName: "SGI" } });
+  expect(await imp.checkExisting(c, ["9876543210", "9123456789"])).toEqual({ "9876543210": { processNames: ["SGI"] } });
+});
+
+test("phone and email values in extra columns are encrypted, never plain", async () => {
+  const { c, repo } = ctx();
+  await imp.importChunk(c, BATCH, [{ phone: "9876543210", alt: null, values: { Mobile: "9876543210", "Father Mobile": "9988776655", Guardian: "g@x.in", Notes: "ok" } }],
+    opts({ mapping: { Mobile: "phone", "Father Mobile": "extra", Guardian: "extra", Notes: "extra" } }));
+  const r = inserted(repo)[0];
+  expect(r.extra).toEqual({ Notes: "ok" });
+  expect(JSON.stringify(r)).not.toContain("9988776655");
+  expect(JSON.parse(dec(r.sensitive_enc))).toEqual({ "Father Mobile": "9988776655", Guardian: "g@x.in" });
+});
+test("follow-up write failure still reports the saved leads as imported", async () => {
+  const { c, repo } = ctx();
+  (repo.insertEvents as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("db down"));
+  expect(await imp.importChunk(c, BATCH, [row("9876543210")], opts())).toEqual({ imported: 1, failed: 0 });
+});
+test("assignTo must be active callers or team leaders in the org", async () => {
+  const { c, repo } = ctx();
+  (repo.validAssignees as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+  await expect(imp.importChunk(c, BATCH, [row("9876543210")], opts({ assignTo: ["44444444-4444-4444-8444-444444444444"] }))).rejects.toThrow(/active callers/);
+});
+test("checkExisting returns every process a phone is in", async () => {
+  const { c, repo } = ctx();
+  const { blindIndex } = await import("@/lib/crypto/fieldCrypto");
+  const h = blindIndex("9876543210", keys.hashKey);
+  (repo.findByPhoneHashes as ReturnType<typeof vi.fn>).mockResolvedValue([{ phone_hash: h, process_name: "SGI" }, { phone_hash: h, process_name: "BNI" }]);
+  expect(await imp.checkExisting(c, ["9876543210"])).toEqual({ "9876543210": { processNames: ["SGI", "BNI"] } });
 });

@@ -28,3 +28,8 @@ test("invalid numbers carry a reason", () => {
   expect(cleanPhone("")).toMatchObject({ valid: false, reason: "blank", primary: null });
   expect(cleanPhone(null)).toMatchObject({ valid: false, reason: "blank" });
 });
+
+test("rounded scientific notation is rejected, not guessed", () => {
+  expect(cleanPhone("9.88E+09")).toMatchObject({ valid: false, reason: "precision_lost" });
+  expect(cleanPhone("9.87654321E+09")).toMatchObject({ valid: true, primary: "9876543210" });
+});

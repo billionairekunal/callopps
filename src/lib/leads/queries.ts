@@ -8,7 +8,7 @@ import { searchKind } from "./search";
 
 export const PAGE_SIZE = 50;
 export type LeadStatus = "new" | "in_progress" | "won" | "lost";
-export type LeadFilters = { q?: string; status?: string; processId?: string; assignedTo?: string; sourceId?: string; city?: string; page?: number };
+export type LeadFilters = { q?: string; qh?: string; status?: string; processId?: string; assignedTo?: string; sourceId?: string; city?: string; page?: number };
 export type LeadListRow = {
   id: string; name: string | null; phone: string; city: string | null; status: LeadStatus; created_at: string;
   process: string | null; product: string | null; leadType: string | null; disposition: string | null; source: string | null;
@@ -41,6 +41,7 @@ export async function listLeads(session: Session, f: LeadFilters): Promise<{ row
   if (f.processId) q = q.eq("process_id", f.processId);
   if (f.sourceId) q = q.eq("source_id", f.sourceId);
   if (f.city) q = q.ilike("city", `%${f.city.replace(/[%_]/g, "")}%`);
+  if (f.qh && /^[0-9a-f]{64}$/.test(f.qh)) q = q.eq("phone_hash", f.qh);
   if (f.assignedTo === "unassigned") q = q.is("assigned_to", null);
   else if (f.assignedTo) q = q.eq("assigned_to", f.assignedTo);
   const searched = await applySearch(q, f.q, session.orgId);

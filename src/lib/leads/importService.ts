@@ -3,7 +3,7 @@ import { blindIndex } from "@/lib/crypto/fieldCrypto";
 import { cleanPhone } from "./phone";
 import { buildLeadRow } from "./row";
 import { requireAdmin, type LeadCtx, type LeadRepo } from "./service";
-import type { Field } from "./detect";
+import { isContactValue, type Field } from "./detect";
 
 export type Named = { id: string; name: string };
 export type ImportRepo = Omit<LeadRepo, "findByPhoneHash"> & {
@@ -14,6 +14,8 @@ export type ImportRepo = Omit<LeadRepo, "findByPhoneHash"> & {
   getBatch(id: string): Promise<{ source_id: string | null; source_name: string } | null>;
   updateBatch(id: string, patch: Record<string, unknown>): Promise<void>;
   lookups(): Promise<{ processes: Named[]; products: Named[]; leadTypes: Named[] }>;
+  /** The subset of these user ids that are active callers or team leaders in the org. */
+  validAssignees(ids: string[]): Promise<string[]>;
 };
 export type ImportCtx = Omit<LeadCtx, "repo"> & { repo: ImportRepo };
 export type ChunkOpts = {
@@ -26,15 +28,17 @@ const mappingSchema = z.record(z.string(), z.enum(FIELDS));
 export const MAX_CHUNK = 500;
 
 /** Which of these (already cleaned) phones already exist in the org, and in which process (D9). */
-export async function checkExisting(c: ImportCtx, phones: string[]): Promise<Record<string, { processName: string | null }>> {
+export async function checkExisting(c: ImportCtx, phones: string[]): Promise<Record<string, { processNames: (string | null)[] }>> {
   requireAdmin(c);
   const list = z.array(z.string().regex(/^\d{10}$/)).max(5000).parse(phones);
   const { hashKey } = await c.keys();
   const byHash = new Map(list.map((p) => [blindIndex(p, hashKey), p]));
-  const out: Record<string, { processName: string | null }> = {};
+  const out: Record<string, { processNames: (string | null)[] }> = {};
   for (const r of await c.repo.findByPhoneHashes([...byHash.keys()])) {
     const p = byHash.get(r.phone_hash);
-    if (p) out[p] = { processName: r.process_name };
+    if (!p) continue;
+    const names = (out[p] ??= { processNames: [] }).processNames;
+    if (!names.includes(r.process_name)) names.push(r.process_name); // a number can be in several processes
   }
   return out;
 }
@@ -70,6 +74,8 @@ export async function importChunk(c: ImportCtx, batchId: string, rowsIn: unknown
   const rows = chunkSchema.parse(rowsIn), o = optsSchema.parse(optsIn);
   const batch = await c.repo.getBatch(uuid.parse(batchId));
   if (!batch) throw new Error("This import was not found. Start again.");
+  if (o.assignTo.length && (await c.repo.validAssignees(o.assignTo)).length !== new Set(o.assignTo).size)
+    throw new Error("Assign only to active callers or team leaders.");
   const [keys, look] = await Promise.all([c.keys(), c.repo.lookups()]);
   const find = (list: Named[], v: string) => list.find((x) => x.name.trim().toLowerCase() === v.trim().toLowerCase())?.id ?? null;
   const sensitive = new Set(o.sensitiveHeaders);
@@ -83,7 +89,8 @@ export async function importChunk(c: ImportCtx, batchId: string, rowsIn: unknown
       if (!v) continue;
       const field = o.mapping[h] ?? "extra";
       if (field === "phone" || field === "alt_phone" || field === "ignore") continue;
-      if (sensitive.has(h)) { secret[h] = v; continue; }
+      // Extra columns holding a phone or email are always encrypted (never plain, never shown masked-less).
+      if (sensitive.has(h) || (field === "extra" && isContactValue(v))) { secret[h] = v; continue; }
       if (field === "extra") extra[h] = v; else f[field] = v;
     }
     const resolve = (field: "process" | "product" | "lead_type", list: Named[], header: string | undefined) => {
@@ -107,8 +114,13 @@ export async function importChunk(c: ImportCtx, batchId: string, rowsIn: unknown
 
   const ids = built.length ? await c.repo.insertLeads(built) : [];
   const base = (lead_id: string) => ({ org_id: c.session.orgId, lead_id, actor_id: c.session.userId });
-  await c.repo.insertEvents(ids.map((id) => ({ ...base(id), type: "created", payload: { via: "import", source: batch.source_name } })));
-  await c.repo.insertStatusHistory(ids.map((id) => ({ ...base(id), from_status: null, to_status: "new" })));
+  try {
+    await c.repo.insertEvents(ids.map((id) => ({ ...base(id), type: "created", payload: { via: "import", source: batch.source_name } })));
+    await c.repo.insertStatusHistory(ids.map((id) => ({ ...base(id), from_status: null, to_status: "new" })));
+  } catch (e) {
+    // ponytail: the leads are saved; only their timeline rows are missing. One transaction (RPC) would remove this gap.
+    console.error("import: timeline rows not written", e);
+  }
   return { imported: ids.length, failed: rows.length - ids.length };
 }
 

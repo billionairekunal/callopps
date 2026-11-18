@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { parseFile, MAX_FILE_MB, type Parsed } from "@/lib/leads/parseFile";
-import { detectColumns, FIELD_LABEL, type Field } from "@/lib/leads/detect";
+import { detectColumns, contactColumns, FIELD_LABEL, type Field } from "@/lib/leads/detect";
 import { buildPreview, type PreviewRow, type PreviewStatus } from "@/lib/leads/preview";
 import { cleanPhone } from "@/lib/leads/phone";
 import { checkExisting, startImport, importChunk, finishImport, savedMappings } from "@/app/(app)/leads/import/actions";
@@ -55,7 +55,7 @@ export function ImportWizard({ processes, people }: { processes: Named[]; people
   const counts = useMemo(() => preview.reduce((a, r) => ({ ...a, [r.status]: (a[r.status] ?? 0) + 1 }), {} as Record<string, number>), [preview]);
   const toImport = useMemo(() => preview.filter((r) =>
     r.status === "ok" || (r.status === "dup_existing" && !skipSame) || (r.status === "dup_other_process" && importOther)), [preview, skipSame, importOther]);
-  const rowNo = (i: number) => i + headerRow + 1;
+  const rowNo = (i: number) => data?.rowNumbers[i] ?? i + headerRow + 1; // the real spreadsheet row
 
   async function readFile() {
     if (!file) return;
@@ -72,7 +72,10 @@ export function ImportWizard({ processes, people }: { processes: Named[]; people
         setMapping(match.mapping); setSensitive(new Set(match.sensitive));
         toast.success(`Used your saved mapping “${match.source_name}”.`);
       } else {
-        setMapping(detectColumns(parsed.headers, parsed.rows.slice(0, 50))); setSensitive(new Set());
+        const guessed = detectColumns(parsed.headers, parsed.rows.slice(0, 50));
+        setMapping(guessed);
+        // Extra columns that hold phones/emails start ticked: they are encrypted either way.
+        setSensitive(new Set(contactColumns(parsed.headers, parsed.rows, guessed)));
       }
       setStep(1);
     } catch (e) {
@@ -85,7 +88,7 @@ export function ImportWizard({ processes, people }: { processes: Named[]; people
     try {
       const pi = headers.indexOf(phoneHeader!);
       const phones = [...new Set(rows.map((r) => cleanPhone(r[pi])).filter((c) => c.valid).map((c) => c.primary!))];
-      const existing = new Map<string, { processName: string | null }>();
+      const existing = new Map<string, { processNames: (string | null)[] }>();
       for (let i = 0; i < phones.length; i += 2000) {
         const r = await checkExisting(phones.slice(i, i + 2000));
         if (!r.ok) throw new Error(r.error);
@@ -110,22 +113,32 @@ export function ImportWizard({ processes, people }: { processes: Named[]; people
     const errors: string[] = [];
     let imported = 0, failedRows = 0;
     setProgress({ done: 0, total, imported: 0, failedRows: 0, errors });
-    const start = await startImport({
-      sourceName: sourceName.trim(), fileName: file!.name, total, headers, mapping, sensitive: [...sensitive], saveMapping,
-    });
+    let start;
+    try {
+      start = await startImport({ sourceName: sourceName.trim(), fileName: file!.name, total, headers, mapping, sensitive: [...sensitive], saveMapping });
+    } catch { start = { ok: false as const, error: "Could not reach the server. Check your connection and try again." }; }
     if (!start.ok) { toast.error(start.error); setBusy(false); setStep(3); return; }
     const { batchId, sourceId } = start.data;
-    for (let i = 0; i < total; i += CHUNK) {
-      const slice = toImport.slice(i, i + CHUNK);
-      const r = await importChunk(batchId, slice.map((x) => ({ phone: x.phone, alt: x.alt, values: x.values })), {
-        mapping, processId: processId || null, sensitiveHeaders: [...sensitive], assignTo: [...assignTo], offset: i,
-      });
-      if (r.ok) { imported += r.data.imported; failedRows += r.data.failed; }
-      else { failedRows += slice.length; errors.push(`Rows ${rowNo(slice[0].index)}–${rowNo(slice.at(-1)!.index)}: ${r.error}`); }
-      setProgress({ done: Math.min(total, i + CHUNK), total, imported, failedRows, errors: [...errors] });
+    try {
+      for (let i = 0; i < total; i += CHUNK) {
+        const slice = toImport.slice(i, i + CHUNK);
+        const range = `Rows ${rowNo(slice[0].index)}–${rowNo(slice.at(-1)!.index)}`;
+        try {
+          const r = await importChunk(batchId, slice.map((x) => ({ phone: x.phone, alt: x.alt, values: x.values })), {
+            mapping, processId: processId || null, sensitiveHeaders: [...sensitive], assignTo: [...assignTo], offset: i,
+          });
+          if (r.ok) { imported += r.data.imported; failedRows += r.data.failed; }
+          else { failedRows += slice.length; errors.push(`${range}: ${r.error}`); }
+        } catch {
+          // Network drop or an over-size request: report this range and keep going; earlier rows stay imported.
+          failedRows += slice.length; errors.push(`${range}: the server didn't answer. Re-import just these rows.`);
+        }
+        setProgress({ done: Math.min(total, i + CHUNK), total, imported, failedRows, errors: [...errors] });
+      }
+    } finally {
+      await finishImport(batchId, { imported, skipped: preview.length - total, invalid: (counts.invalid ?? 0) + (counts.blank ?? 0), failed: imported === 0 }).catch(() => {});
+      setResult({ sourceId }); setBusy(false);
     }
-    await finishImport(batchId, { imported, skipped: preview.length - total, invalid: (counts.invalid ?? 0) + (counts.blank ?? 0), failed: errors.length > 0 && imported === 0 });
-    setResult({ sourceId }); setBusy(false);
   }
 
   const shown = (filter === "all" ? preview : preview.filter((r) => r.status === filter)).slice(0, 200);

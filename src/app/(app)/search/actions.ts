@@ -14,3 +14,15 @@ export async function searchLeads(q: string) {
     return rows.slice(0, 8).map((r) => ({ id: r.id, name: r.name, phone: r.phone.startsWith("•") ? r.phone : maskPhone(r.phone.slice(-4)), status: r.status }));
   });
 }
+
+/** Blind-index token for a full phone number, so filter URLs never hold the number itself. */
+export async function phoneSearchToken(q: string) {
+  return runAction(async () => {
+    const session = await requireRole("super_admin", "admin", "team_leader");
+    const k = searchKind(q);
+    if (k.kind !== "phone") return null;
+    const { getOrgKeys } = await import("@/lib/crypto/orgKeys");
+    const { blindIndex } = await import("@/lib/crypto/fieldCrypto");
+    return blindIndex(k.phone, (await getOrgKeys(session.orgId)).hashKey);
+  });
+}

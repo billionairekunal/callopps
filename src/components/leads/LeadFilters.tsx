@@ -1,19 +1,38 @@
+"use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { phoneSearchToken } from "@/app/(app)/search/actions";
+import { filterQuery } from "@/lib/leads/filterUrl";
+import { searchKind } from "@/lib/leads/search";
 import { Search, RotateCcw } from "lucide-react";
 import type { LeadOptions } from "@/lib/leads/queries";
 import { STATUS_OPTIONS } from "./StatusBadge";
 
 const field = "h-9 rounded-md border border-input bg-white px-2.5 text-sm text-slate-700";
 
-/** Plain GET form so filters live in the URL (shareable, back-button friendly). */
+/** Filters live in the URL (shareable, back-button friendly) — except a full phone number, which becomes a hash token. */
 export function LeadFilters({ opts, sp, showAssignee }: { opts: LeadOptions; sp: Record<string, string | undefined>; showAssignee: boolean }) {
+  const router = useRouter();
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const values = Object.fromEntries([...new FormData(e.currentTarget)].map(([k, v]) => [k, String(v)]));
+    let token: string | null = null;
+    if (searchKind(values.q ?? "").kind === "phone") {
+      const r = await phoneSearchToken(values.q);
+      if (!r.ok) return void toast.error(r.error);
+      token = r.data;
+    }
+    router.push(`?${filterQuery(values, token)}`);
+  }
   return (
-    <form className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border bg-white p-3 shadow-sm">
+    <form onSubmit={submit} className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border bg-white p-3 shadow-sm">
       <label className="relative min-w-56 flex-1">
         <span className="sr-only">Search</span>
         <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-slate-400" />
-        <input name="q" defaultValue={sp.q} placeholder="Name, full number or last 4 digits" className={`${field} w-full pl-8`} />
+        <input name="q" defaultValue={sp.q} placeholder={sp.qh ? "Showing a full-number search" : "Name, full number or last 4 digits"} className={`${field} w-full pl-8`} />
       </label>
+      {sp.qh && <input type="hidden" name="qh" value={sp.qh} />}
       <select name="status" defaultValue={sp.status ?? ""} className={field} aria-label="Status">
         <option value="">All statuses</option>
         {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}

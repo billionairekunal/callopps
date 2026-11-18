@@ -7,7 +7,7 @@ import { LeadFilters } from "@/components/leads/LeadFilters";
 import { LeadsTableWithBulk } from "@/components/leads/LeadsTableWithBulk";
 import { AddLeadDialog } from "@/components/leads/AddLeadDialog";
 
-type SP = { q?: string; status?: string; process?: string; assigned?: string; source?: string; city?: string; page?: string };
+type SP = { q?: string; qh?: string; status?: string; process?: string; assigned?: string; source?: string; city?: string; page?: string };
 
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<SP> }) {
   const session = await requireRole("super_admin", "admin", "team_leader");
@@ -15,7 +15,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const page = Math.max(1, Number(sp.page) || 1);
   const [opts, { rows, total }] = await Promise.all([
     leadOptions(),
-    listLeads(session, { q: sp.q, status: sp.status, processId: sp.process, assignedTo: sp.assigned, sourceId: sp.source, city: sp.city, page }),
+    listLeads(session, { q: sp.q, qh: sp.qh, status: sp.status, processId: sp.process, assignedTo: sp.assigned, sourceId: sp.source, city: sp.city, page }),
   ]);
   const isAdmin = session.role === "super_admin" || session.role === "admin";
   const last = Math.max(1, Math.ceil(total / PAGE_SIZE));

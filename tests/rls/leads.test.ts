@@ -78,3 +78,23 @@ describe.skipIf(!enabled)("RLS: leads", () => {
     expect(r.data!.map((x) => x.lead_id)).toEqual([leadC1]);
   });
 });
+
+describe.skipIf(!enabled)("RLS: lead columns", () => {
+  afterAll(cleanup, 60_000);
+  test("team leader can change assignee/status but not phone, extra or process", async () => {
+    const orgC = await makeOrg("LC");
+    const team = await makeRow("teams", { org_id: orgC, name: "T" });
+    const proc = await makeRow("processes", { org_id: orgC, name: "P" });
+    const tl2 = await makeUser(orgC, "team_leader");
+    const cc = await makeUser(orgC, "caller");
+    await admin().from("profiles").update({ team_id: team }).in("user_id", [tl2.id, cc.id]);
+    const lead = await makeLead(orgC, { assigned_to: cc.id });
+    const bad = await tl2.client.from("leads").update({ phone_hash: "forged", extra: { x: "1" }, process_id: proc }).eq("id", lead);
+    expect(bad.error).not.toBeNull();
+    const good = await tl2.client.from("leads").update({ assigned_to: tl2.id, status: "in_progress" }).eq("id", lead);
+    expect(good.error).toBeNull();
+    const row = (await admin().from("leads").select("phone_hash, status, process_id").eq("id", lead).single()).data!;
+    expect(row.phone_hash).not.toBe("forged");
+    expect(row).toMatchObject({ status: "in_progress", process_id: null });
+  }, 60_000);
+});

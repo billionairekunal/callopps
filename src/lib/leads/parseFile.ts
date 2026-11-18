@@ -1,10 +1,10 @@
 "use client";
 import Papa from "papaparse";
 import { cellText } from "./cellText";
-import { normalizeHeaders } from "./detect";
+import { gridToRows } from "./gridToRows";
 
 export const MAX_FILE_MB = 50;
-export type Parsed = { headers: string[]; rows: string[][] };
+export type Parsed = { headers: string[]; rows: string[][]; rowNumbers: number[] };
 
 /** Read a CSV or XLSX lead file in the browser. `headerRow` is 1-based. */
 export async function parseFile(file: File, headerRow = 1): Promise<Parsed> {
@@ -13,7 +13,8 @@ export async function parseFile(file: File, headerRow = 1): Promise<Parsed> {
   let grid: string[][];
   if (name.endsWith(".csv") || name.endsWith(".txt")) {
     grid = await new Promise((res, rej) =>
-      Papa.parse<string[]>(file, { skipEmptyLines: "greedy", complete: (r) => res(r.data.map((row) => row.map((c) => String(c ?? "").trim()))), error: rej }));
+      // Blank lines are kept so header-row numbers and row ranges match the file; parsed off the main thread.
+      Papa.parse<string[]>(file, { worker: true, complete: (r) => res(r.data.map((row) => row.map((c) => String(c ?? "").trim()))), error: rej }));
   } else if (name.endsWith(".xlsx")) {
     const ExcelJS = (await import("exceljs")).default;
     const wb = new ExcelJS.Workbook();
@@ -23,8 +24,9 @@ export async function parseFile(file: File, headerRow = 1): Promise<Parsed> {
     grid = [];
     ws.eachRow({ includeEmpty: false }, (row) => {
       const vals = (row.values as unknown[]).slice(1); // ExcelJS rows are 1-indexed
-      grid.push(vals.map(cellText));
+      grid[row.number - 1] = vals.map(cellText); // place by real row number; gaps stay blank
     });
+    for (let i = 0; i < grid.length; i++) grid[i] ??= [];
   } else if (name.endsWith(".xls")) {
     throw new Error("Old .xls files aren't supported yet. Open it in Excel and save as .xlsx or .csv.");
   } else if (name.endsWith(".doc") || name.endsWith(".docx")) {
@@ -32,10 +34,5 @@ export async function parseFile(file: File, headerRow = 1): Promise<Parsed> {
   } else {
     throw new Error("Upload a .csv or .xlsx file.");
   }
-  const hi = Math.max(0, headerRow - 1);
-  if (grid.length <= hi) throw new Error("The file has no rows below the header row.");
-  const width = Math.max(...grid.slice(hi, hi + 200).map((r) => r.length));
-  const headers = normalizeHeaders(Array.from({ length: width }, (_, i) => grid[hi][i] ?? ""));
-  const rows = grid.slice(hi + 1).filter((r) => r.some((c) => c)).map((r) => Array.from({ length: width }, (_, i) => r[i] ?? ""));
-  return { headers, rows };
+  return gridToRows(grid, headerRow);
 }

@@ -1,21 +1,21 @@
 # CallOpps security checklist
 
-Status after Phase 1 (2026-11-19).
+Status after Phase 2 (2026-11-19).
 
 | ID | Requirement | Status |
 |---|---|---|
 | S1 | TLS 1.2+ in transit | Supabase and Vercel serve HTTPS only. Add an HSTS header when deploying. |
 | S2 | Data and backups encrypted at rest (AES-256) | Supabase default (disk + backups). |
-| S3 | Field-level encryption for phones and emails | Library done: AES-256-GCM with per-centre keys wrapped by `CALLOPPS_MASTER_KEY`, plus a blind index for search. Used for leads in Phase 2. |
+| S3 | Field-level encryption for phones and emails | Done. Every lead's phone, alternate phone and email are encrypted with AES-256-GCM using per-centre keys wrapped by `CALLOPPS_MASTER_KEY`, plus a blind index for search and duplicate checks. Extra columns that contain phone numbers or emails, and any column the owner marks Sensitive, are encrypted too. Only Super Admins see them unmasked, and each unmasked view is logged. Full-number searches put a hash token in the URL, never the number. |
 | S4 | Passwords hashed | Supabase Auth (bcrypt). Our own password screen requires at least 10 characters and rejects common passwords. |
 | S5 | Two-step login for admins | Done. TOTP is required for Super Admin and Admin, and checked in middleware, in every server action **and in the database (RLS)**. A password-only admin session can read or change nothing. |
 | S6 | Indian region, firewall, no public DB access | Supabase project in Mumbai. **To do before pilot:** turn on network restrictions in the Supabase dashboard, and pin Vercel functions to `bom1`. |
 | S7 | Login limits and idle logout | **Partly done.** The CallOpps sign-in page locks an email for 15 minutes after 5 failures. Known gap: someone calling the Supabase auth API directly skips that lockout (only Supabase's own rate limits apply), and parallel attempts can slip past the count. Admin accounts are still protected by two-step login. To close it: a Supabase password-verification hook, before pilot. Idle sign-out after 30 minutes by default (Super Admin can set 5 to 240); it signs out only that device, and activity in any open tab counts. |
-| S8 | Activity log | Done. The `audit_log` table is append-only: no update or delete for any user. Only the server writes entries, so users can't forge them. Logins, logouts and every setup change are logged. Lead views, imports and exports are added in Phases 2 and 4. |
+| S8 | Activity log | Done. The `audit_log` table is append-only: no update or delete for any user. Only the server writes entries, so users can't forge them. Logins, logouts and every setup change are logged. Unmasked lead views, imports, manual adds and transfers are logged too. Exports come in Phase 4. |
 | S9 | Independent security test | **Pending.** Book it before the pilot. |
 | S10 | Breach response plan | **Pending.** Needs a legal adviser on DPDP duties. |
-| S11 | Three roles, callers see only assigned leads | Roles done (Super Admin, Admin, Team leader, Caller) and enforced by RLS. Lead rules come in Phase 2. |
-| S12 | Only admins import or export | Enforced when import and export ship (Phases 2 and 4). |
+| S11 | Three roles, callers see only assigned leads | Done and enforced in the database. Callers see only leads assigned to them, in their team's processes. Team leaders see their team's leads and can change only the assignee, status, disposition and follow-up. Every reference to another record must belong to the same centre. |
+| S12 | Only admins import or export | Import: done (Super Admin and Admin only, checked in the action and the database). Export: Phase 4. |
 | S13 | Centre can export or delete its data | Phase 4. |
 
 ## Before going live

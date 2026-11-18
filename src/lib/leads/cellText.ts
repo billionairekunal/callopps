@@ -6,6 +6,7 @@ export function cellText(v: unknown): string {
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   if (typeof v === "object") {
     const o = v as { richText?: { text: string }[]; text?: unknown; result?: unknown; hyperlink?: string };
+    if ("error" in o) return ""; // #N/A, #REF! …
     if (o.richText) return o.richText.map((r) => r.text).join("").trim();
     if ("result" in o) return cellText(o.result);
     if (o.text != null) return cellText(o.text);

@@ -7,12 +7,11 @@ export type PreviewRow = { index: number; phone: string | null; alt: string | nu
 /** Clean every row and classify it for the preview screen (D7, D8, D9). */
 export function buildPreview(
   rows: string[][], headers: string[], mapping: Record<string, Field>,
-  existing: Map<string, { processName: string | null }>, targetProcess: string | null,
+  existing: Map<string, { processNames: (string | null)[] }>, targetProcess: string | null,
 ): PreviewRow[] {
   const col = (f: Field) => headers.findIndex((h) => mapping[h] === f);
-  const pi = col("phone"), ai = col("alt_phone");
+  const pi = col("phone"), ai = col("alt_phone"), proc = col("process");
   const seen = new Set<string>();
-  const target = targetProcess?.trim().toLowerCase() ?? null;
 
   return rows.map((r, index) => {
     const values = Object.fromEntries(headers.map((h, i) => [h, String(r[i] ?? "").trim()]));
@@ -26,7 +25,9 @@ export function buildPreview(
     seen.add(phone);
     const ex = existing.get(phone);
     if (ex) {
-      const same = target === null || (ex.processName ?? "").toLowerCase() === target;
+      // The row's own process column wins over the list process (the server does the same).
+      const target = ((proc >= 0 ? String(r[proc] ?? "").trim() : "") || targetProcess || "").toLowerCase() || null;
+      const same = target === null || ex.processNames.some((n) => (n ?? "").toLowerCase() === target);
       return { ...base, status: same ? "dup_existing" : "dup_other_process" };
     }
     return { ...base, status: "ok" };

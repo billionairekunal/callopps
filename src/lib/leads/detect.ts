@@ -7,12 +7,14 @@ export const FIELD_LABEL: Record<Field, string> = {
 };
 
 export function normalizeHeaders(raw: unknown[]): string[] {
-  const seen = new Map<string, number>();
-  return raw.map((h, i) => {
-    const base = String(h ?? "").trim() || `Column ${i + 1}`;
-    const n = (seen.get(base) ?? 0) + 1;
-    seen.set(base, n);
-    return n === 1 ? base : `${base} (${n})`;
+  const bases = raw.map((h, i) => String(h ?? "").trim() || `Column ${i + 1}`);
+  const taken = new Set(bases), used = new Set<string>();
+  return bases.map((base) => {
+    // A repeated header gets the next "(n)" that no other column uses, so values never overwrite each other.
+    let name = base, n = 1;
+    while (used.has(name) || (name !== base && taken.has(name))) name = `${base} (${++n})`;
+    used.add(name);
+    return name;
   });
 }
 
@@ -20,11 +22,11 @@ export function normalizeHeaders(raw: unknown[]): string[] {
 const SYNONYMS: [Exclude<Field, "alt_phone" | "extra" | "ignore">, RegExp][] = [
   ["email", /e-?mail|\bmail\b/i],
   ["phone", /mobile|phone|contact|\bcell\b|\bmob\b|whats\s?app/i],
-  ["process", /process|campaign|college|client/i],
+  ["process", /process|campaign|college/i],
   ["product", /course|product|program/i],
   ["lead_type", /lead\s?type|temperature|priority|hot|warm/i],
   ["city", /city|town|location|district/i],
-  ["name", /name|customer|student|candidate/i],
+  ["name", /name|customer|student|candidate|person/i],
 ];
 const ALT = /alt|alternate|second|other|2nd|whats\s?app/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -38,7 +40,8 @@ export function detectColumns(headers: string[], sample: string[][]): Record<str
     !taken.has("phone") && !ALT.test(h) ? "phone" : !taken.has("alt_phone") ? "alt_phone" : !taken.has("phone") ? "phone" : null;
 
   for (const h of headers) {
-    const hit = SYNONYMS.find(([, re]) => re.test(h))?.[0];
+    // "Contact Person" / "Contact Name" are names, not phone columns.
+    const hit = SYNONYMS.find(([f, re]) => re.test(h) && !(f === "phone" && /person|name/i.test(h)))?.[0];
     if (!hit) continue;
     const f = hit === "phone" ? phoneSlot(h) : taken.has(hit) ? null : hit;
     if (f) claim(h, f);
@@ -54,3 +57,18 @@ export function detectColumns(headers: string[], sample: string[][]): Record<str
   });
   return out;
 }
+
+const PHONE_WORDS = SYNONYMS.find(([f]) => f === "phone")![1], EMAIL_WORDS = SYNONYMS.find(([f]) => f === "email")![1];
+
+/** Columns left as "extra" that still hold phone numbers or emails: they must be encrypted, never stored plain. */
+export function contactColumns(headers: string[], sample: string[][], mapping: Record<string, Field>): string[] {
+  return headers.filter((h, i) => {
+    if (mapping[h] !== "extra") return false;
+    if (PHONE_WORDS.test(h) || EMAIL_WORDS.test(h)) return true;
+    const vals = sample.slice(0, 50).map((r) => String(r[i] ?? "").trim()).filter(Boolean);
+    return vals.length > 0 && vals.filter(isContactValue).length / vals.length >= 0.6;
+  });
+}
+
+/** True for a value that is a mobile number or an email address. */
+export const isContactValue = (v: string) => cleanPhone(v).valid || EMAIL.test(v.trim());

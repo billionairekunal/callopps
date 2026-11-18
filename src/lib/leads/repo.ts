@@ -18,6 +18,8 @@ export function leadRepo(rls: SupabaseClient, orgId: string): LeadRepo {
     insertLeads: async (rows) => (ok(await rls.from("leads").insert(rows).select("id")) ?? []).map((r: { id: string }) => r.id),
     insertEvents: async (rows) => { if (rows.length) ok(await svc.from("lead_events").insert(rows)); },
     insertStatusHistory: async (rows) => { if (rows.length) ok(await svc.from("lead_status_history").insert(rows)); },
+    validAssignees: async (ids) => (ok(await svc.from("profiles").select("user_id").eq("org_id", orgId).eq("status", "active")
+      .in("role", ["caller", "team_leader"]).in("user_id", ids)) ?? []).map((p: { user_id: string }) => p.user_id),
   };
 }
 
@@ -30,6 +32,7 @@ export function importRepo(rls: SupabaseClient, orgId: string): import("./import
   const base = leadRepo(rls, orgId);
   return {
     insertLeads: base.insertLeads, insertEvents: base.insertEvents, insertStatusHistory: base.insertStatusHistory,
+    validAssignees: base.validAssignees,
     findByPhoneHashes: async (hashes) => {
       const out: { phone_hash: string; process_name: string | null }[] = [];
       for (let i = 0; i < hashes.length; i += 150) { // keep the request URL short
