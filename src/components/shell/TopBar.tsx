@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Bell, Menu, Search, LogOut } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { navFor, NAV } from "@/lib/nav";
 import { ROLE_LABEL, type Role } from "@/lib/auth/roles";
 import { logout } from "@/app/(auth)/login/actions";
@@ -55,9 +55,9 @@ export function TopBar({ role, fullName }: { role: Role; fullName: string }) {
           </span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuLabel>{fullName}</DropdownMenuLabel>
+          <DropdownMenuGroup><DropdownMenuLabel>{fullName}</DropdownMenuLabel></DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => logout()}><LogOut className="size-4" />Sign out</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => logout()}><LogOut className="size-4" />Sign out</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
