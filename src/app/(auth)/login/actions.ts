@@ -27,9 +27,9 @@ export async function login(_: LoginState, form: FormData): Promise<LoginState> 
     await logAudit("auth.login_failed", "user", undefined, { email }, { orgId: null, userId: null });
     return { error: "Invalid email or password." };
   }
-  const { data: p } = await createAdminClient().from("profiles").select("org_id").eq("user_id", data.user.id).maybeSingle();
+  const { data: p } = await createAdminClient().from("profiles").select("org_id, role").eq("user_id", data.user.id).maybeSingle();
   await logAudit("auth.login", "user", data.user.id, {}, { orgId: p?.org_id ?? null, userId: data.user.id });
-  redirect("/");
+  redirect(p?.role === "caller" ? "/my-tasks" : "/reports");
 }
 
 export async function logout() {

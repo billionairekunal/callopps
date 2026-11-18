@@ -5,6 +5,7 @@ const PUBLIC = ["/login", "/auth/callback"];
 const needsMfa = (role?: string) => role === "super_admin" || role === "admin";
 
 export async function middleware(req: NextRequest) {
+  req.headers.set("x-pathname", req.nextUrl.pathname);
   let res = NextResponse.next({ request: req });
   const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: {
