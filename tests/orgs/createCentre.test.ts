@@ -3,7 +3,9 @@ import { createCentre, type CentreDeps } from "@/lib/orgs/createCentre";
 import { generateKey } from "@/lib/crypto/fieldCrypto";
 
 function fakeDeps(failAt?: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test recorder accepts any dep arg
   const calls: { step: string; arg: any }[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rec = (step: string, ret: any = undefined) => async (arg: any) => {
     calls.push({ step, arg });
     if (step === failAt) throw new Error("boom");
