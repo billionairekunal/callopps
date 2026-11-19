@@ -31,16 +31,25 @@ export function toPdf(meta: { subtitle: string; generated: string; filters: [str
     headStyles: { fillColor: INK, textColor: 255, fontStyle: "bold" }, styles: { fontSize: 9, cellPadding: 1.8 },
     columnStyles: { 0: { cellWidth: 45, textColor: [71, 85, 105] } },
   });
+  // Tables flow one after another (two or three per page), starting on page 2.
+  doc.addPage();
+  let y = 22;
+  const H0 = doc.internal.pageSize.getHeight();
   for (const s of sheets) {
-    doc.addPage();
-    doc.setTextColor(...CRIMSON).setFont("helvetica", "bold").setFontSize(12).text(s.name === "Summary" ? "Key metrics" : `Breakdown by ${s.name}`.replace("Breakdown by Leads", "Leads"), 14, 22);
+    if (y > H0 - 50) { doc.addPage(); y = 22; }
+    doc.setTextColor(...CRIMSON).setFont("helvetica", "bold").setFontSize(12).text(s.name === "Summary" ? "Key metrics" : s.name === "Leads" ? "Leads" : `Breakdown by ${s.name}`, 14, y);
+    const firstNum = s.columns.findIndex((c) => ["Leads", "Value", "Actual", "Calls"].includes(c));
     autoTable(doc, {
-      startY: 26, head: [s.columns], body: s.rows.map((r) => r.map(String)), theme: "striped",
+      startY: y + 4, head: [s.columns], body: s.rows.map((r) => r.map(String)), theme: "striped",
       headStyles: { fillColor: INK, textColor: 255, fontSize: 8.5 }, styles: { fontSize: 8, cellPadding: 1.6, overflow: "linebreak" },
       alternateRowStyles: { fillColor: [248, 250, 252] },
-      didParseCell: (d) => { if (d.section === "body" && d.row.index === s.rows.length - 1 && String(d.row.raw[0 as never]) === "Total") d.cell.styles.fontStyle = "bold"; },
-      margin: { top: 26, bottom: 18 },
+      didParseCell: (d) => {
+        if (firstNum > 0 && d.column.index >= firstNum) d.cell.styles.halign = "right";
+        if (d.section === "body" && d.row.index === s.rows.length - 1 && String(d.row.raw[0 as never]) === "Total") d.cell.styles.fontStyle = "bold";
+      },
+      margin: { top: 18, bottom: 18 },
     });
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 12;
   }
   const pages = doc.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {

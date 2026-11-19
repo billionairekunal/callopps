@@ -88,3 +88,29 @@ describe.skipIf(!enabled)("report_data", () => {
     expect((await a.client.rpc("report_data", { f: { org, from, to, now_end: to } })).error).toBeTruthy();
   });
 });
+
+describe.skipIf(!enabled)("RLS: targets, saved reports, exports", () => {
+  let org: string, team: string, tl: TestUser, mine: TestUser, other: TestUser, ad: TestUser;
+  beforeAll(async () => {
+    org = await makeOrg("TGT");
+    team = await makeRow("teams", { org_id: org, name: "T" });
+    tl = await makeUser(org, "team_leader"); mine = await makeUser(org, "caller"); other = await makeUser(org, "caller");
+    ad = await makeUser(org, "admin", "active", true);
+    await admin().from("profiles").update({ team_id: team }).in("user_id", [tl.id, mine.id]);
+    for (const u of [mine, other]) await admin().from("targets").insert({ org_id: org, user_id: u.id, month: "2026-11-01", metric: "closures", value: 10 });
+    await admin().from("report_exports").insert({ org_id: org, user_id: ad.id, access: "basic", view: "current", format: "csv", filters: {} });
+  }, 90_000);
+  afterAll(cleanup, 60_000);
+  const users = async (u: TestUser) => ((await u.client.from("targets").select("user_id")).data ?? []).map((r) => r.user_id).sort();
+
+  test("targets: caller sees own, TL sees team, nobody writes directly", async () => {
+    expect(await users(mine)).toEqual([mine.id]);
+    expect(await users(tl)).toEqual([mine.id]);
+    expect((await users(ad)).length).toBe(2);
+    expect((await tl.client.from("targets").insert({ org_id: org, user_id: mine.id, month: "2026-12-01", metric: "leads", value: 1 })).error).toBeTruthy();
+  });
+  test("export log is visible to the Super Admin only", async () => {
+    expect((await ad.client.from("report_exports").select("id")).data).toEqual([]);
+    expect((await mine.client.from("saved_reports").insert({ org_id: org, user_id: mine.id, name: "x", filters: {} })).error).toBeTruthy();
+  });
+});

@@ -97,12 +97,38 @@ async function main() {
     const created = new Date(Date.now() - Math.floor(Math.random() * 30) * 86_400_000 - Math.floor(Math.random() * 8) * 3_600_000).toISOString();
     return { ...row, status, disposition_id: d?.id ?? null, created_at: created };
   });
-  const ins = ok(await db.from("leads").insert(leads).select("id, status, created_at")) as { id: string; status: string; created_at: string }[];
+  const ins = ok(await db.from("leads").insert(leads).select("id, status, created_at, assigned_to, disposition_id")) as { id: string; status: string; created_at: string; assigned_to: string | null; disposition_id: string | null }[];
   await db.from("lead_events").insert(ins.map((l) => ({ org_id: orgId, lead_id: l.id, type: "created", payload: { via: "import", source: "Demo admissions list" }, at: l.created_at })));
   await db.from("lead_status_history").insert(ins.flatMap((l) => [
     { org_id: orgId, lead_id: l.id, from_status: null, to_status: "new", at: l.created_at },
-    ...(l.status === "new" ? [] : [{ org_id: orgId, lead_id: l.id, from_status: "new", to_status: l.status, at: new Date(Date.parse(l.created_at) + 86_400_000).toISOString() }]),
+    ...(l.status === "new" ? [] : [{ org_id: orgId, lead_id: l.id, from_status: "new", to_status: l.status, disposition_id: l.disposition_id,
+      actor_id: l.assigned_to, at: new Date(Math.min(Date.now() - 60_000, Date.parse(l.created_at) + 86_400_000)).toISOString() }]),
   ]));
+
+  // Call history so the reports have something to show: 1–3 saved calls on every worked lead.
+  const calls = ins.filter((l) => l.status !== "new" && l.assigned_to).flatMap((l) => {
+    const n = 1 + Math.floor(Math.random() * 3), t0 = Date.parse(l.created_at);
+    return Array.from({ length: n }, (_, k) => ({
+      org_id: orgId, lead_id: l.id, caller_id: l.assigned_to!, connected: k === n - 1 || Math.random() < 0.4, is_followup: k > 0,
+      disposition_id: k === n - 1 ? l.disposition_id : null, duration_s: 60 + Math.floor(Math.random() * 400), notes: "",
+      started_at: new Date(Math.min(Date.now() - 120_000, t0 + k * 7 * 3_600_000)).toISOString(),
+      saved_at: new Date(Math.min(Date.now() - 60_000, t0 + k * 7 * 3_600_000 + 300_000)).toISOString(),
+    }));
+  });
+  for (let i = 0; i < calls.length; i += 300) ok(await db.from("calls").insert(calls.slice(i, i + 300)));
+
+  // Attendance for the last 20 working days, 9:30 to about 18:00 IST; some days end in an auto logout.
+  const IST = 330 * 60_000, days: { org_id: string; user_id: string; day: string; punch_in: string; punch_out: string; last_activity: string; end_reason: string }[] = [];
+  for (let d = 1; d <= 20; d++) {
+    const day = new Date(Date.now() + IST - d * 86_400_000).toISOString().slice(0, 10);
+    if (new Date(day).getUTCDay() === 0) continue;
+    for (const u of [caller, tl]) {
+      const pin = Date.parse(day + "T09:30:00Z") - IST + Math.floor(Math.random() * 40) * 60_000;
+      const pout = pin + (7.5 + Math.random() * 1.5) * 3_600_000, auto = Math.random() < 0.15;
+      days.push({ org_id: orgId, user_id: u, day, punch_in: new Date(pin).toISOString(), punch_out: new Date(pout).toISOString(), last_activity: new Date(pout).toISOString(), end_reason: auto ? "auto" : "punch_out" });
+    }
+  }
+  ok(await db.from("attendance_sessions").insert(days));
 
   // Store demo logins in .env.local (gitignored), replacing old ones.
   const env = readFileSync(".env.local", "utf8").split(/\r?\n/).filter((l) => l && !l.startsWith("DEMO_"));
