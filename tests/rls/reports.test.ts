@@ -114,3 +114,34 @@ describe.skipIf(!enabled)("RLS: targets, saved reports, exports", () => {
     expect((await mine.client.from("saved_reports").insert({ org_id: org, user_id: mine.id, name: "x", filters: {} })).error).toBeTruthy();
   });
 });
+
+describe.skipIf(!enabled)("report_data at volume", () => {
+  let org: string;
+  beforeAll(async () => {
+    org = await makeOrg("VOL");
+    const u = await makeUser(org, "caller");
+    const now = Date.now();
+    const ids: string[] = [];
+    for (let b = 0; b < 20; b++) {
+      const rows = Array.from({ length: 1000 }, (_, i) => ({ org_id: org, phone_enc: "v1:k:x:y:z", phone_hash: `v${b}-${i}`, phone_last4: "0000",
+        assigned_to: u.id, status: i % 3 ? "in_progress" : "won", created_at: new Date(now - (i % 25) * 86_400_000).toISOString() }));
+      const { data, error } = await admin().from("leads").insert(rows).select("id");
+      if (error) throw error;
+      ids.push(...data.map((d) => d.id));
+    }
+    for (let b = 0; b < 5; b++) {
+      const { error } = await admin().from("calls").insert(ids.slice(b * 1000, b * 1000 + 1000).map((lead_id, i) => ({
+        org_id: org, lead_id, caller_id: u.id, saved_at: new Date(now - (i % 20) * 86_400_000).toISOString(), connected: true, is_followup: i % 2 === 0 })));
+      if (error) throw error;
+    }
+  }, 300_000);
+  afterAll(cleanup, 120_000);
+
+  test("20k leads and 5k calls report in under 5 seconds", async () => {
+    const t = Date.now();
+    const { data, error } = await admin().rpc("report_data", { f: { org, from: new Date(Date.now() - 30 * 86_400_000).toISOString(), to: new Date(Date.now() + 86_400_000).toISOString(), now_end: new Date().toISOString() } });
+    if (error) throw error;
+    expect(data.kpis.calls).toBe(5000);
+    expect(Date.now() - t).toBeLessThan(5000);
+  }, 120_000);
+});

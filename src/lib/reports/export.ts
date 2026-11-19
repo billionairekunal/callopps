@@ -1,7 +1,7 @@
 import { breakdown, targetRows, winRate, fmtDuration, DIMS, type Dim } from "./build";
 import type { RawReport } from "./server";
 
-export type Sheet = { name: string; columns: string[]; rows: (string | number)[][] };
+export type Sheet = { name: string; columns: string[]; rows: (string | number)[][]; breakdown?: boolean };
 export type LeadRow = {
   name: string | null; phone: string; alt: string | null; email: string | null; city: string | null;
   process: string | null; category: string | null; product: string | null; leadType: string | null; status: string;
@@ -26,7 +26,7 @@ export function basicSheets(raw: RawReport, labels: Record<string, string>, targ
   const tables: Sheet[] = (view === "current" ? CURRENT : DETAILED).map((d) => {
     const t = breakdown(raw.groups, d, labels);
     const pad = Array(DIMS[d].cols.length - 1).fill("");
-    return { name: DIMS[d].title, columns: t.columns, rows: [
+    return { name: DIMS[d].title, breakdown: true, columns: t.columns, rows: [
       ...t.rows.map((r) => [...r.cells, r.leads, r.followups, r.in_progress, r.won, r.lost, `${r.winRate}%`]),
       ["Total", ...pad, t.total.leads, t.total.followups, t.total.in_progress, t.total.won, t.total.lost, `${t.total.winRate}%`],
     ] };
@@ -65,7 +65,8 @@ export function leadSheet(leads: LeadRow[], view: "current" | "detailed"): Sheet
 
 const cell = (v: string | number) => {
   let s = String(v);
-  if (/^[=+\-@\t\r]/.test(s) && typeof v === "string") s = "'" + s; // spreadsheet formula injection
+  // Spreadsheet formula injection: guard text that starts (after spaces) with = + - @, except plain numbers like +91 98765 43210.
+  if (typeof v === "string" && /^\s*[=+\-@\t\r]/.test(s) && !/^[+-]?[\d\s()-]+$/.test(s)) s = "'" + s;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 export function toCsv(sheets: Sheet[]): string {

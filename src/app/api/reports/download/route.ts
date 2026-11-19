@@ -41,14 +41,16 @@ export async function POST(req: Request) {
   const rows = sheets.reduce((n, s) => n + s.rows.length, 0);
   const label = `${d.access === "basic" ? "Basic Report" : "Full Data"} · ${d.view === "current" ? "Current View" : "Detailed View"}`;
   const stamp = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" }).format(new Date());
-  const file = d.format === "csv" ? Buffer.from("﻿" + toCsv(sheets), "utf8")
-    : d.format === "xlsx" ? await toXlsx(sheets)
-    : toPdf({ subtitle: `${label} · ${range.from.slice(0, 10)} to ${range.to.slice(0, 10)}`, generated: stamp, filters: describeFilters(f, labels, range.label, d.access) }, sheets);
-
-  await createAdminClient().from("report_exports").insert({
+  // R9: no record, no file.
+  const { error: logErr } = await createAdminClient().from("report_exports").insert({
     org_id: session.orgId, user_id: session.userId, access: d.access, view: d.view, format: d.format, filters: f, rows,
   });
-  await logAudit(d.access === "full" ? "report.download_full" : "report.download", "report", undefined, { view: d.view, format: d.format, rows, range: range.label });
+  if (logErr) { console.error("report_exports", logErr.message); return fail(500, "Could not record this download, so it was stopped. Try again."); }
+  await logAudit(d.access === "full" ? "report.download_full" : "report.download", "report", undefined, { view: d.view, format: d.format, rows, range: range.label, filters: f });
+
+  const file = d.format === "csv" ? Buffer.from("\uFEFF" + toCsv(sheets), "utf8")
+    : d.format === "xlsx" ? await toXlsx(sheets)
+    : toPdf({ subtitle: `${label} · ${range.label}`, generated: stamp, filters: describeFilters(f, labels, range.label, d.access) }, sheets);
 
   const name = `callopps-${d.access === "full" ? "full-data" : "report"}-${new Date().toISOString().slice(0, 10)}.${d.format}`;
   return new Response(new Uint8Array(file), { headers: {

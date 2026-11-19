@@ -37,7 +37,7 @@ export function toPdf(meta: { subtitle: string; generated: string; filters: [str
   const H0 = doc.internal.pageSize.getHeight();
   for (const s of sheets) {
     if (y > H0 - 50) { doc.addPage(); y = 22; }
-    doc.setTextColor(...CRIMSON).setFont("helvetica", "bold").setFontSize(12).text(s.name === "Summary" ? "Key metrics" : s.name === "Leads" ? "Leads" : `Breakdown by ${s.name}`, 14, y);
+    doc.setTextColor(...CRIMSON).setFont("helvetica", "bold").setFontSize(12).text(s.name === "Summary" ? "Key metrics" : s.breakdown ? `Breakdown by ${s.name}` : s.name, 14, y);
     const firstNum = s.columns.findIndex((c) => ["Leads", "Value", "Actual", "Calls"].includes(c));
     autoTable(doc, {
       startY: y + 4, head: [s.columns], body: s.rows.map((r) => r.map(String)), theme: "striped",

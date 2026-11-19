@@ -40,11 +40,13 @@ export function rangeFor(f: Pick<ReportFilters, "preset" | "from" | "to">, now =
 
 export function parseFilters(sp: Record<string, string | string[] | undefined>): ReportFilters {
   const one = (k: string) => { const v = sp[k]; return (Array.isArray(v) ? v[0] : v)?.trim() || undefined; };
-  const list = (k: string) => (one(k) ?? "").split(",").map((x) => x.trim()).filter((x) => UUID.test(x));
+  // A URL gives "a,b"; a saved report (JSON) gives ["a","b"]. Accept both.
+  const many = (k: string) => { const v = sp[k]; return (Array.isArray(v) ? v : (v ?? "").split(",")).map((x) => String(x).trim()).filter(Boolean); };
+  const list = (k: string) => many(k).filter((x) => UUID.test(x));
   const preset = (one("preset") ?? "this_month") as Preset;
   const f = {
     preset: preset in PRESETS ? preset : "this_month",
-    statuses: (one("statuses") ?? "").split(",").filter((s) => (STATUS_VALUES as readonly string[]).includes(s)),
+    statuses: many("statuses").filter((s) => (STATUS_VALUES as readonly string[]).includes(s)),
     ...Object.fromEntries(LIST_KEYS.map((k) => [k, list(k)])),
   } as ReportFilters;
   if (f.preset === "custom") { f.from = one("from"); f.to = one("to"); }

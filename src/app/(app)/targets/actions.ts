@@ -36,7 +36,11 @@ export async function saveTargets(input: unknown) {
       const { error } = await svc.from("targets").upsert(upserts, { onConflict: "org_id,user_id,month,metric" });
       if (error) throw new Error("Could not save targets.");
     }
-    for (const c of clears) await svc.from("targets").delete().eq("org_id", s.orgId).eq("user_id", c.user).eq("month", month).eq("metric", c.metric);
+    // One delete per metric (at most six), for everyone whose cell was cleared.
+    for (const m of metrics) {
+      const users = clears.filter((c) => c.metric === m).map((c) => c.user);
+      if (users.length) await svc.from("targets").delete().eq("org_id", s.orgId).eq("month", month).eq("metric", m).in("user_id", users);
+    }
     await logAudit("targets.save", "targets", undefined, { month, agents: ids.length });
     revalidatePath("/targets"); revalidatePath("/reports");
   });

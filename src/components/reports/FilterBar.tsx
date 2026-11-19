@@ -5,6 +5,7 @@ import { filterQuery, PRESETS, type Preset, type ReportFilters } from "@/lib/rep
 import type { FilterOptions } from "@/lib/reports/server";
 import { MultiSelect } from "./MultiSelect";
 
+const istToday = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
 const sel = "h-9 w-full rounded-md border border-input bg-white px-2 text-sm";
 const STATUSES = [{ value: "new", label: "New" }, { value: "in_progress", label: "In progress" }, { value: "won", label: "Won" }, { value: "lost", label: "Lost" }];
 
@@ -25,7 +26,7 @@ export function FilterBar({ f, opts, showAgentFilters = true }: { f: ReportFilte
           <CalendarDays className="size-4 shrink-0 text-slate-400" />
           <select aria-label="Date range" className={sel} value={f.preset} onChange={(e) => {
             const preset = e.target.value as Preset;
-            go(preset === "custom" ? { preset, from: f.from ?? new Date().toISOString().slice(0, 10), to: f.to ?? new Date().toISOString().slice(0, 10) } : { preset, from: undefined, to: undefined });
+            go(preset === "custom" ? { preset, from: f.from ?? istToday(), to: f.to ?? istToday() } : { preset, from: undefined, to: undefined });
           }}>
             {Object.entries(PRESETS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
@@ -44,7 +45,7 @@ export function FilterBar({ f, opts, showAgentFilters = true }: { f: ReportFilte
         {ms("lead_types", "All lead types")}
         {ms("dispositions", "All Dispositions")}
         {ms("sources", "All Sources")}
-        <input aria-label="City" defaultValue={f.city ?? ""} placeholder="City" className={sel}
+        <input key={f.city ?? ""} aria-label="City" defaultValue={f.city ?? ""} placeholder="City" className={sel}
           onKeyDown={(e) => { if (e.key === "Enter") go({ city: e.currentTarget.value.trim() || undefined }); }}
           onBlur={(e) => { if ((e.target.value.trim() || undefined) !== f.city) go({ city: e.target.value.trim() || undefined }); }} />
       </div>

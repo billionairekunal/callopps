@@ -31,3 +31,9 @@ test("prorate targets by days of the range inside each month", () => {
   // spans Oct 31 (1 of 31 days of 310) + Nov 1 (1 of 30 days of 300) → 10 + 10
   expect(prorate([{ month: "2026-10-01", value: 310 }, { month: "2026-11-01", value: 300 }], "2026-10-30T18:30:00.000Z", "2026-11-01T18:30:00.000Z")).toBe(20);
 });
+
+test("saved filters (stored as JSON with arrays) reopen with every selection", () => {
+  const V = "22222222-2222-4222-8222-222222222222";
+  const f = parseFilters({ preset: "custom", from: "2026-11-01", to: "2026-11-05", processes: `${U},${V}`, statuses: "won,lost" });
+  expect(parseFilters(JSON.parse(JSON.stringify(f)))).toEqual(f);
+});

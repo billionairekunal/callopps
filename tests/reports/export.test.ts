@@ -29,3 +29,8 @@ test("lead sheet: detailed adds extra and sensitive columns", () => {
   expect(d.columns).toEqual(expect.arrayContaining(["Board", "PAN (sensitive)"]));
   expect(d.rows[0]).toContain("CBSE");
 });
+
+test("CSV keeps phone numbers as they are, but still guards formulas after spaces", () => {
+  expect(toCsv([{ name: "", columns: ["P"], rows: [["+91 98765 43210"], ["-123"], ["  =cmd()"]] }]))
+    .toBe("P\r\n+91 98765 43210\r\n-123\r\n'  =cmd()\r\n");
+});
