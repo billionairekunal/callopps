@@ -5,6 +5,7 @@ import { decryptField, blindIndex, maskPhone } from "@/lib/crypto/fieldCrypto";
 import { logAudit } from "@/lib/audit";
 import type { Session } from "@/lib/auth/roles";
 import { searchKind } from "./search";
+import { fmtDateTime } from "@/lib/calls/time";
 
 export const PAGE_SIZE = 50;
 export type LeadStatus = "new" | "in_progress" | "won" | "lost";
@@ -66,7 +67,7 @@ export type TimelineItem = { at: string; kind: string; text: string; actor: stri
 export type LeadDetail = {
   id: string; name: string | null; phone: string; alt: string | null; email: string | null; city: string | null;
   status: LeadStatus; disposition: string | null; process: string | null; product: string | null; leadType: string | null;
-  source: string | null; assignedName: string | null; assignedTo: string | null; created_at: string; next_followup_at: string | null;
+  source: string | null; assignedName: string | null; assignedTo: string | null; processId: string | null; created_at: string; next_followup_at: string | null;
   extra: Record<string, string>; sensitive: Record<string, string> | null; timeline: TimelineItem[];
 };
 
@@ -89,12 +90,19 @@ export async function getLead(session: Session, id: string): Promise<LeadDetail 
     ...(tr.data ?? []).flatMap((t) => [t.from_user, t.to_user, t.by_user])].forEach((p) => p && people.add(p));
   const { data: profs } = people.size ? await db.from("profiles").select("user_id, full_name").in("user_id", [...people]) : { data: [] };
   const who = (u: string | null) => (u ? profs?.find((p) => p.user_id === u)?.full_name ?? "Someone" : null);
+  const dispIds = [...new Set((ev.data ?? []).map((e) => e.type === "call" && e.payload?.disposition_id).filter(Boolean) as string[])];
+  const { data: disps } = dispIds.length ? await db.from("dispositions").select("id, label").in("id", dispIds) : { data: [] };
+  const callText = (p: Record<string, unknown>) => [
+    p.connected ? "Call · connected" : "Call · not connected",
+    disps?.find((d) => d.id === p.disposition_id)?.label,
+    p.duration_s ? `${Math.max(1, Math.round(Number(p.duration_s) / 60))} min` : null,
+  ].filter(Boolean).join(" · ") + (p.notes ? ` — ${p.notes}` : "") + (p.followup_at ? ` (follow-up ${fmtDateTime(String(p.followup_at))})` : "");
 
   const timeline: TimelineItem[] = [
-    ...(ev.data ?? []).filter((e) => e.type !== "transfer").map((e) => ({
+    ...(ev.data ?? []).filter((e) => e.type !== "transfer" && e.type !== "call_started").map((e) => ({
       at: e.at, kind: e.type, actor: who(e.actor_id),
       text: e.type === "created" ? `Lead created${e.payload?.via === "import" ? ` from import “${e.payload.source ?? ""}”` : " by hand"}`
-        : e.type === "note" ? String(e.payload?.text ?? "") : e.type.replace(/_/g, " "),
+        : e.type === "note" ? String(e.payload?.text ?? "") : e.type === "call" ? callText(e.payload ?? {}) : e.type.replace(/_/g, " "),
     })),
     ...(hist.data ?? []).filter((h) => h.from_status).map((h) => ({
       at: h.at, kind: "status", actor: who(h.actor_id),
@@ -118,7 +126,7 @@ export async function getLead(session: Session, id: string): Promise<LeadDetail 
     email: l.email_enc ? (keys ? dec(l.email_enc) : l.email_mask) : null,
     disposition: nm(l.disposition as Named), process: nm(l.process as Named), product: nm(l.product as Named),
     leadType: nm(l.lead_type as Named), source: nm(l.source as Named),
-    assignedName: nm(l.assignee as Named), assignedTo: l.assigned_to,
+    assignedName: nm(l.assignee as Named), assignedTo: l.assigned_to, processId: l.process_id,
     extra: (l.extra ?? {}) as Record<string, string>,
     sensitive: keys && l.sensitive_enc ? JSON.parse(dec(l.sensitive_enc)!) : null,
     timeline,

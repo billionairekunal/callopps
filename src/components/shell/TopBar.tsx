@@ -12,8 +12,9 @@ import { ROLE_LABEL, type Role } from "@/lib/auth/roles";
 import { logout } from "@/app/(auth)/login/actions";
 import { SidebarNav } from "./Sidebar";
 import { Logo } from "./Logo";
+import { PunchChip, type Attendance } from "@/components/calls/PunchChip";
 
-export function TopBar({ role, fullName }: { role: Role; fullName: string }) {
+export function TopBar({ role, fullName, attendance }: { role: Role; fullName: string; attendance: Attendance | null }) {
   const path = usePathname();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
@@ -60,6 +61,7 @@ export function TopBar({ role, fullName }: { role: Role; fullName: string }) {
         <span className="hidden truncate sm:inline">Search leads…</span>
         <kbd className="ml-auto rounded border border-rose-200 px-1.5 text-[10px] text-rose-500">Ctrl K</kbd>
       </button>
+      {attendance && <PunchChip a={attendance} />}
       <button className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100" aria-label="Notifications">
         <Bell className="size-5" />
       </button>
