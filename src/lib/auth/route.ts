@@ -4,7 +4,7 @@ import { needsMfa, type Role } from "./roles";
 export type Decision = { next: true } | { redirect: string } | { forbidden: true };
 type Profile = { role: Role; status: "active" | "deactivated" } | null;
 
-const PUBLIC = ["/login", "/auth/callback"];
+const PUBLIC = ["/login", "/auth/callback", "/api/health"];
 const AUTH_PAGES = ["/login", "/mfa", "/not-set-up", "/"];
 
 /** Pure middleware routing: sign-in, set-up, MFA, then role access. `aal.next === "aal2"` means a factor is enrolled. */

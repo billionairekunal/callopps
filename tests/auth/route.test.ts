@@ -35,3 +35,7 @@ test("signed-in users on auth pages go home", () => {
   expect(routeDecision("/", "u", admin, aal("aal2"))).toEqual({ redirect: "/reports" });
   expect(routeDecision("/mfa", "u", admin, aal("aal1", "aal2"))).toEqual({ next: true });
 });
+
+test("the health check is public (uptime monitors aren't signed in)", () => {
+  expect(routeDecision("/api/health", null, null, { current: "aal1", next: "aal1" })).toEqual({ next: true });
+});

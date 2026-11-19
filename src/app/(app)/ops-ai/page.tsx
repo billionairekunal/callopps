@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { OpsChat } from "@/components/ai/OpsChat";
 
+export const maxDuration = 90; // the Ops AI server action runs in this route
+
 export default async function OpsAi() {
   const s = await requireRole("super_admin", "admin");
   const { data: org } = await (await createClient()).from("orgs").select("ai_enabled").single();

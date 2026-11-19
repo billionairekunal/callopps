@@ -20,6 +20,8 @@ Status after Phase 2 (2026-11-19).
 
 ## Before going live
 
+The full step-by-step is in `docs/deploy.md`. In short:
+
 1. **Rotate the Supabase secret key and access token.** Both were pasted into
    a chat during setup. Replace them in `.env.local`.
 2. **Set up custom SMTP** in Supabase. The default mailer sends only a few

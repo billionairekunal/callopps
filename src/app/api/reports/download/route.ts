@@ -8,6 +8,8 @@ import { toPdf } from "@/lib/reports/pdf";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
 
+export const maxDuration = 120; // big Full Data workbooks
+
 const body = z.object({
   query: z.string().max(4000),
   access: z.enum(["basic", "full"]),
