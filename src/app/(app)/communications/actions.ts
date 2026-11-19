@@ -41,7 +41,7 @@ export async function messageTemplates(leadId: string, channel: "whatsapp" | "sm
     const [{ data: lead }, { data: org }, { data: tpls }] = await Promise.all([
       rls.from("leads").select("name").eq("id", z.string().uuid().parse(leadId)).maybeSingle(),
       rls.from("orgs").select("name").single(),
-      rls.from("message_templates").select("id, name, body").eq("channel", channel).order("name"),
+      rls.from("message_templates").select("id, name, body").eq("channel", z.enum(["whatsapp", "sms"]).parse(channel)).order("name"),
     ]);
     const vars = { name: lead?.name, agent: s.fullName, centre: org?.name };
     return (tpls ?? []).map((t) => ({ id: t.id, name: t.name, text: fillTemplate(t.body, vars) }));

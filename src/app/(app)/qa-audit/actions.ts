@@ -35,7 +35,7 @@ export async function saveAudit(input: unknown) {
 export async function saveChecklist(text: string) {
   return runAction(async () => {
     const s = await requireRole("super_admin", "admin");
-    const lines = z.string().max(4000).parse(text).split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 20);
+    const lines = [...new Set(z.string().max(4000).parse(text).split("\n").map((l) => l.trim()).filter(Boolean))].slice(0, 20);
     if (lines.length < 1) throw new Error("Add at least one checklist item.");
     const old = await checklistFor(s.orgId);
     const items = lines.map((label, i) => old.find((o) => o.label === label) ?? { id: `i${Date.now().toString(36)}${i}`, label: label.slice(0, 200) });

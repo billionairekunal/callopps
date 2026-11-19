@@ -38,3 +38,7 @@ test("someone else's lead, an admin, or a template of the other channel are refu
   await expect(openMessage(ctx().c, { leadId: LEAD, channel: "sms", templateId: TPL, body: "x" })).rejects.toThrow(/template/i);
   await expect(openMessage(ctx().c, { leadId: LEAD, channel: "sms", body: "  " })).rejects.toThrow();
 });
+
+test("fillTemplate ignores built-in object names like {constructor}", () => {
+  expect(fillTemplate("Hi {name} {constructor} {toString}", { name: "Ravi" })).toBe("Hi Ravi {constructor} {toString}");
+});

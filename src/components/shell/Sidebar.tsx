@@ -48,18 +48,29 @@ export function SidebarNav({ role, collapsed = false, unreadChat = 0, onNavigate
   );
 }
 
-/** Live unread count for Internal Chat: refetched on navigation, on new messages (Realtime, RLS-filtered) and after reading. */
+/** Live unread count for Internal Chat. One shared Realtime subscription per tab (RLS-filtered), refetched on new messages, reads and navigation. */
+const unread = { n: 0, listeners: new Set<(n: number) => void>(), load: null as null | (() => void) };
+function startUnread() {
+  if (unread.load) return unread.load;
+  const db = createClient();
+  let t: ReturnType<typeof setTimeout> | undefined;
+  const load = () => {
+    clearTimeout(t);
+    t = setTimeout(() => db.rpc("chat_unread").then(({ data }) => {
+      unread.n = ((data ?? []) as { unread: number }[]).reduce((a, r) => a + Number(r.unread), 0);
+      unread.listeners.forEach((f) => f(unread.n));
+    }), 300);
+  };
+  db.channel("chat-unread").on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, load).subscribe();
+  window.addEventListener("callopps:chat-read", load);
+  return (unread.load = load);
+}
+
 export function useUnreadChat() {
   const path = usePathname();
-  const [n, setN] = useState(0);
-  useEffect(() => {
-    const db = createClient();
-    const load = () => db.rpc("chat_unread").then(({ data }) => setN(((data ?? []) as { unread: number }[]).reduce((a, r) => a + Number(r.unread), 0)));
-    load();
-    const sub = db.channel(`chat-unread-${Math.random().toString(36).slice(2)}`).on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, () => setTimeout(load, 800)).subscribe();
-    window.addEventListener("callopps:chat-read", load);
-    return () => { db.removeChannel(sub); window.removeEventListener("callopps:chat-read", load); };
-  }, [path]);
+  const [n, setN] = useState(unread.n);
+  useEffect(() => { unread.listeners.add(setN); return () => { unread.listeners.delete(setN); }; }, []);
+  useEffect(() => { startUnread()(); }, [path]);
   return n;
 }
 

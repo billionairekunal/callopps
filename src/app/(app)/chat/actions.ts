@@ -19,8 +19,10 @@ export async function openDm(otherId: string) {
       const ins = await svc.from("chat_channels").insert({ org_id: s.orgId, kind: "dm", name: "Direct message", dm_key: key }).select("id").single();
       ch = ins.data ?? (await svc.from("chat_channels").select("id").eq("org_id", s.orgId).eq("dm_key", key).single()).data;
       if (!ch) throw new Error("Could not open the conversation.");
-      await svc.from("chat_members").upsert([{ channel_id: ch.id, user_id: s.userId }, { channel_id: ch.id, user_id: other }]);
     }
+    // Always (re)ensure both members, so a half-created DM heals itself.
+    const { error } = await svc.from("chat_members").upsert([{ channel_id: ch.id, user_id: s.userId }, { channel_id: ch.id, user_id: other }]);
+    if (error) throw new Error("Could not open the conversation.");
     return ch.id as string;
   });
 }

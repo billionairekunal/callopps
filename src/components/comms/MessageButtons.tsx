@@ -28,7 +28,7 @@ export function MessageButtons({ leadId, leadName }: { leadId: string; leadName:
     start(async () => {
     const r = await openMessage({ leadId, channel, templateId: tpl || null, body });
     if (!r.ok) { win?.close(); return void toast.error(r.error); }
-    if (win) win.location.href = r.data.url; else window.location.href = r.data.url;
+    if (win) { win.opener = null; win.location.href = r.data.url; } else window.location.href = r.data.url;
     toast.success(`${LABEL[channel!]} opened and logged`); setChannel(null);
     });
   };

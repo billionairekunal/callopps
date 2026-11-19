@@ -78,4 +78,15 @@ describe.skipIf(!enabled)("RLS: chat, communications, QA", () => {
     const { data } = await admin().rpc("report_data", { f: { org, from: new Date(Date.now() - 86_400_000).toISOString(), to: new Date(Date.now() + 86_400_000).toISOString(), now_end: new Date().toISOString() } });
     expect(data.agents.find((a: { id: string }) => a.id === c1.id).whatsapp_sent).toBe(1);
   });
+  test("a new user's unread count starts from when they joined, not the whole history", async () => {
+    const fresh = await makeUser(org, "caller");
+    const rows = (await fresh.client.rpc("chat_unread")).data as { channel_id: string }[];
+    expect(rows.find((r) => r.channel_id === general)).toBeUndefined();
+  });
+  test("admins can't read message bodies through lead timelines", async () => {
+    const lead = await makeLead(org, { assigned_to: c1.id });
+    await admin().from("lead_events").insert({ org_id: org, lead_id: lead, type: "message", payload: { body: "fee details" } });
+    expect(((await ad.client.from("lead_events").select("type").eq("lead_id", lead)).data ?? []).map((r) => r.type)).not.toContain("message");
+    expect(((await sa.client.from("lead_events").select("type").eq("lead_id", lead)).data ?? []).map((r) => r.type)).toContain("message");
+  });
 });

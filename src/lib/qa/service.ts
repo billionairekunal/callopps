@@ -51,6 +51,7 @@ export async function saveAudit(c: QaCtx, input: unknown): Promise<{ score: numb
   const items = await c.repo.checklist();
   if (items.some((i) => !d.scores[i.id])) throw new Error("Answer every checklist item (Pass, Fail or N/A).");
   const scores = Object.fromEntries(items.map((i) => [i.id, d.scores[i.id]])) as Record<string, Answer>;
+  if (Object.values(scores).every((v) => v === "na")) throw new Error("Score at least one item Pass or Fail (an all-N/A audit has no score).");
   const score = scoreOf(items, scores);
   const ok = await c.repo.insert({ org_id: s.orgId, call_id: call.id, lead_id: call.lead_id, agent_id: call.caller_id, auditor_id: s.userId, scores, score, remarks: d.remarks ?? "" });
   if (!ok) throw new Error("This call was already audited.");

@@ -20,13 +20,13 @@ export async function askOps(context: unknown, history: Turn[], question: string
   try {
     const res = await client.beta.messages.create({
       model: "claude-opus-5-5",
-      max_tokens: 16000,
+      max_tokens: 8000, // answers are short; keeps the server action well inside platform time limits
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default", // a declined request is retried on a fallback model inside the same call
       output_config: { effort: "medium" },
       system: [
         { type: "text", text: SYSTEM },
-        // The data block is the same for every question this hour, so cache it.
+        // The data block is rebuilt at most every 5 minutes per centre, so repeat questions hit the prompt cache.
         { type: "text", text: `Report data (JSON):\n${JSON.stringify(context)}`, cache_control: { type: "ephemeral" } },
       ],
       messages: [...history, { role: "user", content: question }],

@@ -42,3 +42,7 @@ test("every checklist item needs an answer; unsaved or already-audited calls are
   const dup = ctx("super_admin"); dup.repo.insert.mockResolvedValueOnce(false);
   await expect(saveAudit(dup.c, input)).rejects.toThrow(/already/i);
 });
+
+test("an audit with every item N/A is refused (it would score a misleading 0%)", async () => {
+  await expect(saveAudit(ctx("super_admin").c, { ...input, scores: { a: "na", b: "na", c: "na" } })).rejects.toThrow(/at least one/i);
+});

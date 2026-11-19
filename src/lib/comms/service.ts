@@ -17,7 +17,7 @@ export type CommsCtx = {
 
 const FALLBACK: Record<string, string> = { name: "there" };
 export const fillTemplate = (body: string, vars: Record<string, string | null | undefined>) =>
-  body.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? vars[k]?.trim() || FALLBACK[k] || "" : m));
+  body.replace(/\{(\w+)\}/g, (m, k: string) => (Object.hasOwn(vars, k) ? vars[k]?.trim() || FALLBACK[k] || "" : m));
 
 export const messageLink = (channel: Channel, phone: string, text: string) =>
   channel === "whatsapp" ? `https://wa.me/91${phone}?text=${encodeURIComponent(text)}` : `sms:+91${phone}?body=${encodeURIComponent(text)}`;

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Hash, Users, User } from "lucide-react";
 import { requireRole } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ensureChannels } from "@/lib/chat/server";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { ChatRoom, type Msg } from "@/components/chat/ChatRoom";
@@ -13,7 +14,8 @@ export default async function Chat({ searchParams }: { searchParams: Promise<{ c
   const db = await createClient();
   const [{ data: chans }, { data: people }, { data: unread }, { data: members }] = await Promise.all([
     db.from("chat_channels").select("id, kind, name, dm_key").order("kind").order("name"),
-    db.from("profiles").select("user_id, full_name").eq("status", "active").order("full_name"),
+    // Everyone in the centre can see colleagues' names in chat (RLS on profiles would hide other teams).
+    createAdminClient().from("profiles").select("user_id, full_name").eq("org_id", s.orgId).eq("status", "active").order("full_name"),
     db.rpc("chat_unread"),
     db.from("chat_members").select("channel_id, user_id"),
   ]);
