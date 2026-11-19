@@ -10,7 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
 import { navFor, NAV } from "@/lib/nav";
 import { ROLE_LABEL, type Role } from "@/lib/auth/roles";
 import { logout } from "@/app/(auth)/login/actions";
-import { SidebarNav } from "./Sidebar";
+import { SidebarNav, useUnreadChat } from "./Sidebar";
 import { Logo } from "./Logo";
 import { PunchChip, type Attendance } from "@/components/calls/PunchChip";
 import { writePending } from "@/components/calls/callStore";
@@ -19,6 +19,7 @@ export function TopBar({ role, fullName, attendance }: { role: Role; fullName: s
   const path = usePathname();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
+  const unread = useUnreadChat();
   const [search, setSearch] = useState(false);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<{ id: string; name: string | null; phone: string; status: string }[]>([]);
@@ -85,7 +86,7 @@ export function TopBar({ role, fullName, attendance }: { role: Role; fullName: s
         <SheetContent side="left" className="flex w-64 flex-col border-0 bg-sidebar p-0">
           <SheetTitle className="sr-only">Menu</SheetTitle>
           <div className="border-b border-sidebar-border p-4"><Logo /></div>
-          <SidebarNav role={role} onNavigate={() => setMenu(false)} />
+          <SidebarNav role={role} unreadChat={unread} onNavigate={() => setMenu(false)} />
         </SheetContent>
       </Sheet>
 

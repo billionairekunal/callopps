@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/browser";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navFor } from "@/lib/nav";
@@ -47,14 +48,30 @@ export function SidebarNav({ role, collapsed = false, unreadChat = 0, onNavigate
   );
 }
 
+/** Live unread count for Internal Chat: refetched on navigation, on new messages (Realtime, RLS-filtered) and after reading. */
+export function useUnreadChat() {
+  const path = usePathname();
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    const db = createClient();
+    const load = () => db.rpc("chat_unread").then(({ data }) => setN(((data ?? []) as { unread: number }[]).reduce((a, r) => a + Number(r.unread), 0)));
+    load();
+    const sub = db.channel(`chat-unread-${Math.random().toString(36).slice(2)}`).on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, () => setTimeout(load, 800)).subscribe();
+    window.addEventListener("callopps:chat-read", load);
+    return () => { db.removeChannel(sub); window.removeEventListener("callopps:chat-read", load); };
+  }, [path]);
+  return n;
+}
+
 export function Sidebar({ role }: { role: Role }) {
   const [collapsed, setCollapsed] = useState(false);
+  const unread = useUnreadChat();
   return (
     <aside className={cn("sticky top-0 hidden h-dvh shrink-0 flex-col bg-sidebar md:flex", collapsed ? "w-[68px]" : "w-60")}>
       <div className={cn("border-b border-sidebar-border px-4 py-4", collapsed && "px-3")}>
         <Logo collapsed={collapsed} />
       </div>
-      <SidebarNav role={role} collapsed={collapsed} />
+      <SidebarNav role={role} collapsed={collapsed} unreadChat={unread} />
       <button type="button" onClick={() => setCollapsed((c) => !c)} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         className="flex items-center justify-center border-t border-sidebar-border py-3 text-slate-400 hover:text-white">
         <ChevronLeft className={cn("size-4 transition-transform", collapsed && "rotate-180")} />
