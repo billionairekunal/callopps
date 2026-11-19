@@ -8,6 +8,9 @@ import { logAudit } from "@/lib/audit";
 import { supabaseRepo } from "@/lib/setup/repo";
 import * as svc from "@/lib/setup/service";
 import type { LookupTable } from "@/lib/setup/schemas";
+import { runAction } from "@/lib/actions";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { purgeConfirmed } from "@/lib/data/pack";
 
 export type Result = { ok: true } | { ok: false; error: string };
 
@@ -38,3 +41,18 @@ export async function setUserTeam(userId: string, teamId: string | null) {
   return run(async (c) => { await c.repo.updateProfile(userId, { team_id: teamId }); await c.audit("setup.user.team", "user", userId, { teamId }); });
 }
 export async function updateOrgSettings(input: unknown) { return run((c) => svc.updateOrgSettings(c, input)); }
+
+/** S13: permanently delete every lead and everything about them. Super Admin + "DELETE <centre name>". */
+export async function purgeCustomerData(typed: string) {
+  return runAction(async () => {
+    const s = await requireRole("super_admin");
+    const admin = createAdminClient();
+    const { data: org } = await admin.from("orgs").select("name").eq("id", s.orgId).single();
+    if (!org || !purgeConfirmed(String(typed ?? ""), org.name)) throw new Error(`Type DELETE ${org?.name ?? ""} exactly to confirm.`);
+    const { data, error } = await admin.rpc("purge_org_data", { org: s.orgId });
+    if (error) throw new Error("Delete failed. Nothing was removed.");
+    await logAudit("data.purge", "orgs", s.orgId, data as Record<string, unknown>);
+    revalidatePath("/", "layout");
+    return data as { leads: number };
+  });
+}

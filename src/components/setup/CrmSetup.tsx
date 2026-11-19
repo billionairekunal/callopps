@@ -16,6 +16,7 @@ import {
 } from "@/app/(app)/crm-setup/actions";
 import { LookupTable, type LookupRow } from "./LookupTable";
 import { useAction } from "./useAction";
+import { DataControls } from "./DataControls";
 
 type Named = { id: string; name: string };
 export type SetupData = {
@@ -299,6 +300,7 @@ function Security({ data, isSuper }: { data: SetupData; isSuper: boolean }) {
           {isSuper && <Button type="submit" disabled={pending}>Save</Button>}
         </form>
       </Section>
+      {isSuper && <Section title="Your data"><DataControls orgName={data.org.name} /></Section>}
       <Section title="How your data is protected">
         <div className="space-y-3 rounded-xl border bg-white p-5 text-sm text-slate-600 shadow-sm">
           <p>Data is encrypted in transit and at rest, stored on servers in India, and every access is controlled and logged.</p>
