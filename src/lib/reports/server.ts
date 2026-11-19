@@ -80,10 +80,14 @@ export async function filterOptions(s: Session) {
     svc.from("teams").select("team_leader_id").eq("org_id", s.orgId).not("team_leader_id", "is", null),
   ]);
   const inScope = (id: string) => !scope || scope.includes(id);
+  // §14: a team leader works only the processes linked to their team.
+  const teamProcs = s.role === "team_leader" || s.role === "caller"
+    ? new Set(((await svc.from("team_processes").select("process_id").eq("org_id", s.orgId).eq("team_id", s.teamId ?? "00000000-0000-0000-0000-000000000000")).data ?? []).map((r) => r.process_id))
+    : null;
   const opt = (rows: { id: string; name?: string; label?: string }[] | null) => (rows ?? []).map((r) => ({ value: r.id, label: r.name ?? r.label ?? "" }));
   const tlIds = new Set((teams.data ?? []).map((t) => t.team_leader_id));
   return {
-    processes: opt(p.data), categories: opt(c.data), products: opt(pr.data), lead_types: opt(lt.data),
+    processes: opt(p.data).filter((o) => !teamProcs || teamProcs.has(o.value)), categories: opt(c.data), products: opt(pr.data), lead_types: opt(lt.data),
     dispositions: opt(d.data), sources: opt(so.data),
     agents: (people.data ?? []).filter((x) => inScope(x.user_id)).map((x) => ({ value: x.user_id, label: x.full_name })),
     tls: (people.data ?? []).filter((x) => tlIds.has(x.user_id) && inScope(x.user_id)).map((x) => ({ value: x.user_id, label: x.full_name })),

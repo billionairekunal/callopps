@@ -33,3 +33,9 @@ test("rounded scientific notation is rejected, not guessed", () => {
   expect(cleanPhone("9.88E+09")).toMatchObject({ valid: false, reason: "precision_lost" });
   expect(cleanPhone("9.87654321E+09")).toMatchObject({ valid: true, primary: "9876543210" });
 });
+
+test("Excel-style trailing .0 and the 091 prefix are cleaned", () => {
+  expect(cleanPhone("9876543210.0")).toMatchObject({ primary: "9876543210", valid: true });
+  expect(cleanPhone("0919876543210")).toMatchObject({ primary: "9876543210", valid: true });
+  expect(cleanPhone("98765.43210")).toMatchObject({ valid: true, primary: "9876543210" });
+});

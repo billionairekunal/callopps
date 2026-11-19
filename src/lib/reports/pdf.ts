@@ -35,7 +35,9 @@ export function toPdf(meta: { subtitle: string; generated: string; filters: [str
   doc.addPage();
   let y = 22;
   const H0 = doc.internal.pageSize.getHeight();
-  for (const s of sheets) {
+  const CAP = 2000; // a PDF is for reading; the full rows are in XLSX/CSV
+  for (const full of sheets) {
+    const s = full.rows.length > CAP ? { ...full, rows: [...full.rows.slice(0, CAP), [`… ${full.rows.length - CAP} more rows: download XLSX or CSV for all of them`]] } : full;
     if (y > H0 - 50) { doc.addPage(); y = 22; }
     doc.setTextColor(...CRIMSON).setFont("helvetica", "bold").setFontSize(12).text(s.name === "Summary" ? "Key metrics" : s.breakdown ? `Breakdown by ${s.name}` : s.name, 14, y);
     const firstNum = s.columns.findIndex((c) => ["Leads", "Value", "Actual", "Calls"].includes(c));

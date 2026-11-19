@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { MessageCircle, MessageSquareText } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ export function MessageButtons({ leadId, leadName }: { leadId: string; leadName:
   const [tpl, setTpl] = useState("");
   const [body, setBody] = useState("");
   const [pending, start] = useTransition();
+  const [canSms, setCanSms] = useState(false);
+  useEffect(() => { setCanSms(window.matchMedia("(pointer: coarse)").matches); }, []); // phones and tablets have an SMS app
   const openDialog = (c: Channel) => start(async () => {
     setChannel(c); setTpl(""); setBody("");
     const r = await messageTemplates(leadId, c);
@@ -36,7 +38,7 @@ export function MessageButtons({ leadId, leadName }: { leadId: string; leadName:
     <>
       <div className="flex gap-2">
         <Button size="sm" variant="outline" onClick={() => openDialog("whatsapp")}><MessageCircle className="size-4 text-emerald-600" />WhatsApp</Button>
-        <Button size="sm" variant="outline" onClick={() => openDialog("sms")}><MessageSquareText className="size-4 text-sky-600" />SMS</Button>
+        {canSms && <Button size="sm" variant="outline" onClick={() => openDialog("sms")}><MessageSquareText className="size-4 text-sky-600" />SMS</Button>}
       </div>
       <Dialog open={!!channel} onOpenChange={(o) => !o && setChannel(null)}>
         <DialogContent className="sm:max-w-md">

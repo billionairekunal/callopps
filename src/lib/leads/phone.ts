@@ -9,6 +9,7 @@ const MOBILE = /^[6-9]\d{9}$/;
 function normalize(part: string): string {
   let d = part.replace(/\D/g, "");
   if (d.length === 14 && d.startsWith("0091")) d = d.slice(4);
+  else if (d.length === 13 && d.startsWith("091")) d = d.slice(3);
   else if (d.length === 12 && d.startsWith("91")) d = d.slice(2);
   else if (d.length === 11 && d.startsWith("0")) d = d.slice(1);
   return d;
@@ -32,6 +33,7 @@ export function cleanPhone(raw: unknown): CleanPhone {
     s = Math.round(Number(s)).toString();
   }
 
+  s = s.replace(/^(\d{10,14})\.0+$/, "$1"); // a number cell saved as text by Excel: "9876543210.0"
   let parts = s.split(/[\/,;|]/).map((p) => p.trim()).filter(Boolean);
   if (parts.length <= 1) {
     const all = s.replace(/\D/g, "");

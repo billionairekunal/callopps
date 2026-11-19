@@ -10,10 +10,13 @@ type Lead = {
 export type CommitInput = {
   callId: string; leadId: string; actorId: string; connected: boolean; dispositionId: string | null; notes: string;
   followupAt: string | null; durationS: number | null; status: Outcome; fromStatus: string; leadDispositionId: string | null;
+  updateLead: boolean;
 };
 export type CallRepo = {
   /** Through the user's RLS client: null when they can't see it. */
   getLead(id: string): Promise<Lead | null>;
+  /** Server read of a call's lead (the caller owns the call, not necessarily the lead any more). */
+  leadForCall(id: string): Promise<Lead | null>;
   createCall(row: { org_id: string; lead_id: string; caller_id: string }): Promise<string>;
   getCall(id: string): Promise<{ id: string; lead_id: string; caller_id: string; saved_at: string | null } | null>;
   disposition(id: string): Promise<{ id: string; process_id: string | null; outcome: Outcome } | null>;
@@ -61,8 +64,10 @@ export async function saveOutcome(c: CallCtx, input: unknown): Promise<{ status:
   const call = await c.repo.getCall(d.callId);
   if (!call) throw new Error("Call not found.");
   if (call.caller_id !== s.userId) throw new AuthError("forbidden");
-  const lead = await c.repo.getLead(call.lead_id);
+  // The call is the caller's own, so read its lead directly: it may have been moved to someone else mid-call.
+  const lead = await c.repo.leadForCall(call.lead_id);
   if (!lead) throw new Error("Lead not found.");
+  const ownsLead = s.role === "super_admin" || lead.assigned_to === s.userId;
 
   // A retry after a lost response: the save already went through.
   if (call.saved_at) return { status: lead.status as Outcome };
@@ -81,7 +86,8 @@ export async function saveOutcome(c: CallCtx, input: unknown): Promise<{ status:
     callId: call.id, leadId: lead.id, actorId: s.userId, connected: d.connected, dispositionId: disp?.id ?? null,
     notes: d.notes?.trim() ?? "", followupAt, durationS: d.durationS ?? null, status, fromStatus: lead.status,
     leadDispositionId: keep ? lead.disposition_id : disp.id,
+    updateLead: ownsLead, // a moved lead keeps its new owner's status and follow-up; the call is still recorded
   }); // false = a double tap already saved it; same result either way
   await c.repo.touch();
-  return { status };
+  return { status: ownsLead ? status : (lead.status as Outcome) };
 }

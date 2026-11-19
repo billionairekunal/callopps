@@ -14,6 +14,8 @@ export default async function WhatsAppReports({ searchParams }: { searchParams: 
   let q = createAdminClient().from("communications").select("user_id, at").eq("org_id", s.orgId).eq("channel", "whatsapp")
     .gte("at", range.from).lt("at", range.to).limit(50_000); // ponytail: grouped in JS; move to SQL past ~50k a month
   if (scope) q = q.in("user_id", scope);
+  const agentIds = ((await createAdminClient().from("profiles").select("user_id").eq("org_id", s.orgId).in("role", ["caller", "team_leader"])).data ?? []).map((p) => p.user_id);
+  q = q.in("user_id", agentIds.length ? agentIds : ["00000000-0000-0000-0000-000000000000"]); // same people as the WhatsApp Sent target
   const [{ data }, labels] = await Promise.all([q, labelsFor(s.orgId)]);
   const day = (iso: string) => new Date(Date.parse(iso) + 330 * 60_000).toISOString().slice(0, 10);
   const days = [...new Set((data ?? []).map((r) => day(r.at)))].sort().reverse();

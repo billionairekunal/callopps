@@ -23,6 +23,7 @@ export async function callCtx(s: Session): Promise<CallCtx> {
   const svc = createAdminClient();
   const repo: CallRepo = {
     getLead: async (id) => ok(await rls.from("leads").select("id, assigned_to, process_id, status, phone_enc, disposition_id, next_followup_at").eq("id", id).maybeSingle()),
+    leadForCall: async (id) => ok(await svc.from("leads").select("id, assigned_to, process_id, status, phone_enc, disposition_id, next_followup_at").eq("org_id", s.orgId).eq("id", id).maybeSingle()),
     createCall: async (row) => (ok(await svc.from("calls").insert(row).select("id").single()) as { id: string }).id,
     getCall: async (id) => ok(await svc.from("calls").select("id, lead_id, caller_id, saved_at").eq("org_id", s.orgId).eq("id", id).maybeSingle()),
     disposition: async (id) => ok(await svc.from("dispositions").select("id, process_id, outcome").eq("org_id", s.orgId).eq("id", id).maybeSingle()),

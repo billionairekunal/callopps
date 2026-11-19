@@ -14,6 +14,9 @@ function ctx(role: Role = "caller", over: Partial<CallRepo> = {}, lead: LeadOver
     getLead: vi.fn(async (id: string) => (id === LEAD ? {
       id, assigned_to: ME, process_id: "P1", status: "new", phone_enc: "enc", disposition_id: null, next_followup_at: null, ...lead,
     } : null)),
+    leadForCall: vi.fn(async (id: string) => (id === LEAD ? {
+      id, assigned_to: ME, process_id: "P1", status: "new", phone_enc: "enc", disposition_id: null, next_followup_at: null, ...lead,
+    } : null)),
     createCall: vi.fn(async () => CALL),
     getCall: vi.fn(async (id: string) => (id === CALL ? { id, lead_id: LEAD, caller_id: ME, saved_at: null } : null)),
     disposition: vi.fn(async (id: string) => (id === D_WON ? { id, process_id: "P1", outcome: "won" as const } : id === D_OTHER ? { id, process_id: "P2", outcome: "lost" as const } : null)),
@@ -97,4 +100,10 @@ test("retrying a call that is already saved succeeds without writing again", asy
   expect(done.repo.commit).not.toHaveBeenCalled();
   const raced = ctx("caller", { commit: vi.fn(async () => false) });
   expect(await saveOutcome(raced.c, { callId: CALL, connected: false })).toEqual({ status: "in_progress" });
+});
+
+test("a lead moved to someone else mid-call: the call is still saved, the lead is left to its new owner", async () => {
+  const { c, repo } = ctx("caller", { getLead: vi.fn(async () => null), leadForCall: vi.fn(async () => ({ id: LEAD, assigned_to: "other", process_id: "P1", status: "in_progress", phone_enc: "e", disposition_id: null, next_followup_at: null })) });
+  expect(await saveOutcome(c, { callId: CALL, connected: false, notes: "rang" })).toEqual({ status: "in_progress" });
+  expect(repo.commit).toHaveBeenCalledWith(expect.objectContaining({ updateLead: false, notes: "rang" }));
 });

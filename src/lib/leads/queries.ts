@@ -38,14 +38,15 @@ export async function listLeads(session: Session, f: LeadFilters): Promise<{ row
   const page = Math.max(1, f.page ?? 1);
   let q = db.from("leads").select(SELECT, { count: "exact" }).order("created_at", { ascending: false })
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
-  if (f.status) q = q.eq("status", f.status);
-  if (f.processId) q = q.eq("process_id", f.processId);
-  if (f.sourceId) q = q.eq("source_id", f.sourceId);
+  const id = (v?: string) => (v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) ? v : undefined); // a mistyped URL is ignored, not an error page
+  if (f.status && ["new", "in_progress", "won", "lost"].includes(f.status)) q = q.eq("status", f.status);
+  if (id(f.processId)) q = q.eq("process_id", f.processId!);
+  if (id(f.sourceId)) q = q.eq("source_id", f.sourceId!);
   if (f.dispositionId && /^[0-9a-f-]{36}$/i.test(f.dispositionId)) q = q.eq("disposition_id", f.dispositionId);
   if (f.city) q = q.ilike("city", `%${f.city.replace(/[%_]/g, "")}%`);
   if (f.qh && /^[0-9a-f]{64}$/.test(f.qh)) q = q.eq("phone_hash", f.qh);
   if (f.assignedTo === "unassigned") q = q.is("assigned_to", null);
-  else if (f.assignedTo) q = q.eq("assigned_to", f.assignedTo);
+  else if (id(f.assignedTo)) q = q.eq("assigned_to", f.assignedTo!);
   const searched = await applySearch(q, f.q, session.orgId);
   if (!searched) return { rows: [], total: 0 };
   const { data, count, error } = await searched;
