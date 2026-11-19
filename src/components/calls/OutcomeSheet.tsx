@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,8 @@ export function OutcomeSheet() {
   const [followup, setFollowup] = useState("");
   const [minutes, setMinutes] = useState("");
   const [pending, start] = useTransition();
+  const lastName = useRef("");
+  if (call) lastName.current = call.name; // keeps the text steady while the dialog animates closed
 
   useEffect(() => {
     const sync = () => setCall(readPending());
@@ -74,7 +76,7 @@ export function OutcomeSheet() {
       <DialogContent showCloseButton={false} className="max-h-[92dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>How did the call go?</DialogTitle>
-          <DialogDescription>Call with {call?.name}. Save the outcome when you hang up.</DialogDescription>
+          <DialogDescription>Call with {lastName.current}. Save the outcome when you hang up.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1.5">
