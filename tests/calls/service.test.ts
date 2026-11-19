@@ -4,20 +4,21 @@ import type { Role, Session } from "@/lib/auth/roles";
 
 const LEAD = "11111111-1111-4111-8111-111111111111", CALL = "22222222-2222-4222-8222-222222222222";
 const D_WON = "33333333-3333-4333-8333-333333333333", D_OTHER = "44444444-4444-4444-8444-444444444444";
+const D_PREV = "66666666-6666-4666-8666-666666666666";
 const ME = "me";
+type LeadOver = Partial<{ assigned_to: string | null; status: string; disposition_id: string | null; next_followup_at: string | null }>;
 
-function ctx(role: Role = "caller", over: Partial<CallRepo> = {}, lead: Partial<{ assigned_to: string | null; status: string }> = {}) {
+function ctx(role: Role = "caller", over: Partial<CallRepo> = {}, lead: LeadOver = {}) {
   const session: Session = { userId: ME, orgId: "org", role, teamId: "T1", aal: "aal2", fullName: "Me" };
   const repo: CallRepo = {
-    getLead: vi.fn(async (id: string) => (id === LEAD ? { id, assigned_to: ME, process_id: "P1", status: "new", phone_enc: "enc", ...lead } : null)),
+    getLead: vi.fn(async (id: string) => (id === LEAD ? {
+      id, assigned_to: ME, process_id: "P1", status: "new", phone_enc: "enc", disposition_id: null, next_followup_at: null, ...lead,
+    } : null)),
     createCall: vi.fn(async () => CALL),
     getCall: vi.fn(async (id: string) => (id === CALL ? { id, lead_id: LEAD, caller_id: ME, saved_at: null } : null)),
     disposition: vi.fn(async (id: string) => (id === D_WON ? { id, process_id: "P1", outcome: "won" as const } : id === D_OTHER ? { id, process_id: "P2", outcome: "lost" as const } : null)),
-    hasSavedCall: vi.fn(async () => false),
-    saveCall: vi.fn(async () => true),
-    updateLead: vi.fn(async () => {}),
+    commit: vi.fn(async () => true),
     insertEvents: vi.fn(async () => {}),
-    insertStatusHistory: vi.fn(async () => {}),
     touch: vi.fn(async () => {}),
     ...over,
   };
@@ -54,25 +55,30 @@ test("an invisible lead is not found", async () => {
 
 const future = () => new Date(Date.now() + 86_400_000).toISOString();
 
-test("saving a connected call: status from disposition, history, follow-up set", async () => {
+test("saving a connected call commits call, lead and history in one step", async () => {
   const { c, repo } = ctx();
   const due = future();
   expect(await saveOutcome(c, { callId: CALL, connected: true, dispositionId: D_WON, notes: "Paid", followupAt: due, durationS: 120 }))
     .toEqual({ status: "won" });
-  expect(repo.saveCall).toHaveBeenCalledWith(CALL, expect.objectContaining({ connected: true, disposition_id: D_WON, duration_s: 120, is_followup: false, followup_at: due }));
-  expect(repo.updateLead).toHaveBeenCalledWith(LEAD, { status: "won", disposition_id: D_WON, next_followup_at: due });
-  expect(repo.insertStatusHistory).toHaveBeenCalledWith([expect.objectContaining({ from_status: "new", to_status: "won", disposition_id: D_WON })]);
-  expect(repo.insertEvents).toHaveBeenCalledWith([expect.objectContaining({ type: "call", payload: expect.objectContaining({ connected: true, notes: "Paid" }) })]);
+  expect(repo.commit).toHaveBeenCalledWith(expect.objectContaining({
+    callId: CALL, leadId: LEAD, connected: true, dispositionId: D_WON, notes: "Paid", followupAt: due, durationS: 120,
+    status: "won", fromStatus: "new", leadDispositionId: D_WON, actorId: ME,
+  }));
 });
 test("connected needs a disposition", async () => {
   await expect(saveOutcome(ctx().c, { callId: CALL, connected: true })).rejects.toThrow(/disposition/i);
 });
-test("not connected without disposition: in progress, follow-up cleared, no history when unchanged", async () => {
-  const { c, repo } = ctx("caller", { hasSavedCall: vi.fn(async () => true) }, { status: "in_progress" });
-  expect(await saveOutcome(c, { callId: CALL, connected: false })).toEqual({ status: "in_progress" });
-  expect(repo.saveCall).toHaveBeenCalledWith(CALL, expect.objectContaining({ is_followup: true, followup_at: null }));
-  expect(repo.updateLead).toHaveBeenCalledWith(LEAD, { status: "in_progress", disposition_id: null, next_followup_at: null });
-  expect(repo.insertStatusHistory).not.toHaveBeenCalled();
+test("no answer without a disposition keeps the lead's disposition, follow-up and status", async () => {
+  const due = future();
+  const { c, repo } = ctx("caller", {}, { status: "won", disposition_id: D_PREV, next_followup_at: due });
+  expect(await saveOutcome(c, { callId: CALL, connected: false })).toEqual({ status: "won" });
+  expect(repo.commit).toHaveBeenCalledWith(expect.objectContaining({ status: "won", leadDispositionId: D_PREV, followupAt: due, dispositionId: null }));
+});
+test("no answer on a new lead moves it to in progress; a new follow-up replaces the old one", async () => {
+  const due = future();
+  const { c, repo } = ctx("caller", {}, { next_followup_at: "2020-01-01T00:00:00Z" });
+  await saveOutcome(c, { callId: CALL, connected: false, followupAt: due });
+  expect(repo.commit).toHaveBeenCalledWith(expect.objectContaining({ status: "in_progress", followupAt: due }));
 });
 test("a disposition from another process is refused", async () => {
   await expect(saveOutcome(ctx().c, { callId: CALL, connected: true, dispositionId: D_OTHER })).rejects.toThrow(/process/i);
@@ -81,10 +87,14 @@ test("follow-up in the past is refused", async () => {
   await expect(saveOutcome(ctx().c, { callId: CALL, connected: false, followupAt: new Date(Date.now() - 3_600_000).toISOString() }))
     .rejects.toThrow(/future/i);
 });
-test("someone else's call, or one already saved, cannot be saved", async () => {
+test("someone else's call cannot be saved", async () => {
   const other = ctx("caller", { getCall: vi.fn(async () => ({ id: CALL, lead_id: LEAD, caller_id: "x", saved_at: null })) });
   await expect(saveOutcome(other.c, { callId: CALL, connected: false })).rejects.toThrow("forbidden");
-  const saved = ctx("caller", { saveCall: vi.fn(async () => false) });
-  await expect(saveOutcome(saved.c, { callId: CALL, connected: false })).rejects.toThrow(/already saved/i);
-  expect(saved.repo.updateLead).not.toHaveBeenCalled();
+});
+test("retrying a call that is already saved succeeds without writing again", async () => {
+  const done = ctx("caller", { getCall: vi.fn(async () => ({ id: CALL, lead_id: LEAD, caller_id: ME, saved_at: "2026-11-19T00:00:00Z" })) }, { status: "won" });
+  expect(await saveOutcome(done.c, { callId: CALL, connected: false })).toEqual({ status: "won" });
+  expect(done.repo.commit).not.toHaveBeenCalled();
+  const raced = ctx("caller", { commit: vi.fn(async () => false) });
+  expect(await saveOutcome(raced.c, { callId: CALL, connected: false })).toEqual({ status: "in_progress" });
 });

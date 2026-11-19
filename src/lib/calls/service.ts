@@ -3,10 +3,13 @@ import { AuthError, type Session } from "@/lib/auth/roles";
 import type { EventRow } from "@/lib/leads/service";
 
 export type Outcome = "in_progress" | "won" | "lost";
-type Lead = { id: string; assigned_to: string | null; process_id: string | null; status: string; phone_enc: string };
-type CallPatch = {
-  saved_at: string; connected: boolean; disposition_id: string | null; notes: string;
-  followup_at: string | null; duration_s: number | null; is_followup: boolean;
+type Lead = {
+  id: string; assigned_to: string | null; process_id: string | null; status: string; phone_enc: string;
+  disposition_id: string | null; next_followup_at: string | null;
+};
+export type CommitInput = {
+  callId: string; leadId: string; actorId: string; connected: boolean; dispositionId: string | null; notes: string;
+  followupAt: string | null; durationS: number | null; status: Outcome; fromStatus: string; leadDispositionId: string | null;
 };
 export type CallRepo = {
   /** Through the user's RLS client: null when they can't see it. */
@@ -14,12 +17,9 @@ export type CallRepo = {
   createCall(row: { org_id: string; lead_id: string; caller_id: string }): Promise<string>;
   getCall(id: string): Promise<{ id: string; lead_id: string; caller_id: string; saved_at: string | null } | null>;
   disposition(id: string): Promise<{ id: string; process_id: string | null; outcome: Outcome } | null>;
-  hasSavedCall(leadId: string): Promise<boolean>;
-  /** Atomic: only saves a call that is not saved yet. False when it already was. */
-  saveCall(id: string, patch: CallPatch): Promise<boolean>;
-  updateLead(id: string, patch: { status: string; disposition_id: string | null; next_followup_at: string | null }): Promise<void>;
+  /** One transaction: saves the call (only if unsaved), updates the lead, writes history and timeline. False if already saved. */
+  commit(input: CommitInput): Promise<boolean>;
   insertEvents(rows: EventRow[]): Promise<void>;
-  insertStatusHistory(rows: { org_id: string; lead_id: string; from_status: string; to_status: string; disposition_id: string | null; actor_id: string }[]): Promise<void>;
   /** Attendance activity for the current user. */
   touch(): Promise<void>;
 };
@@ -64,26 +64,24 @@ export async function saveOutcome(c: CallCtx, input: unknown): Promise<{ status:
   const lead = await c.repo.getLead(call.lead_id);
   if (!lead) throw new Error("Lead not found.");
 
+  // A retry after a lost response: the save already went through.
+  if (call.saved_at) return { status: lead.status as Outcome };
+
   const disp = d.dispositionId ? await c.repo.disposition(d.dispositionId) : null;
   if (d.dispositionId && !disp) throw new Error("Pick a disposition from the list.");
   if (disp?.process_id && disp.process_id !== lead.process_id) throw new Error("That disposition belongs to another process.");
   if (d.connected && !disp) throw new Error("Pick a disposition for a connected call.");
   if (d.followupAt && new Date(d.followupAt).getTime() <= Date.now()) throw new Error("Pick a follow-up time in the future.");
 
-  const status = statusFor(disp?.outcome ?? null);
-  const followup = d.followupAt ?? null;
-  const saved = await c.repo.saveCall(call.id, {
-    saved_at: new Date().toISOString(), connected: d.connected, disposition_id: disp?.id ?? null, notes: d.notes?.trim() ?? "",
-    followup_at: followup, duration_s: d.durationS ?? null, is_followup: await c.repo.hasSavedCall(lead.id),
-  });
-  if (!saved) throw new Error("This call was already saved.");
-
-  await c.repo.updateLead(lead.id, { status, disposition_id: disp?.id ?? null, next_followup_at: followup });
-  const base = { org_id: s.orgId, lead_id: lead.id, actor_id: s.userId };
-  if (lead.status !== status) await c.repo.insertStatusHistory([{ ...base, from_status: lead.status, to_status: status, disposition_id: disp?.id ?? null }]);
-  await c.repo.insertEvents([{ ...base, type: "call", payload: {
-    call_id: call.id, connected: d.connected, disposition_id: disp?.id ?? null, notes: d.notes?.trim() ?? "", followup_at: followup, duration_s: d.durationS ?? null,
-  } }]);
+  // No answer and no disposition: the lead keeps what it had (a new lead becomes In progress).
+  const keep = !disp;
+  const status = keep ? (lead.status === "new" ? "in_progress" : (lead.status as Outcome)) : statusFor(disp.outcome);
+  const followupAt = d.followupAt ?? (keep ? lead.next_followup_at : null);
+  await c.repo.commit({
+    callId: call.id, leadId: lead.id, actorId: s.userId, connected: d.connected, dispositionId: disp?.id ?? null,
+    notes: d.notes?.trim() ?? "", followupAt, durationS: d.durationS ?? null, status, fromStatus: lead.status,
+    leadDispositionId: keep ? lead.disposition_id : disp.id,
+  }); // false = a double tap already saved it; same result either way
   await c.repo.touch();
   return { status };
 }

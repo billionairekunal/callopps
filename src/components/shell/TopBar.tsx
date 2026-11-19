@@ -13,6 +13,7 @@ import { logout } from "@/app/(auth)/login/actions";
 import { SidebarNav } from "./Sidebar";
 import { Logo } from "./Logo";
 import { PunchChip, type Attendance } from "@/components/calls/PunchChip";
+import { writePending } from "@/components/calls/callStore";
 
 export function TopBar({ role, fullName, attendance }: { role: Role; fullName: string; attendance: Attendance | null }) {
   const path = usePathname();
@@ -76,7 +77,7 @@ export function TopBar({ role, fullName, attendance }: { role: Role; fullName: s
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuGroup><DropdownMenuLabel>{fullName}</DropdownMenuLabel></DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => logout()}><LogOut className="size-4" />Sign out</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => { writePending(null); logout(); }}><LogOut className="size-4" />Sign out</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 

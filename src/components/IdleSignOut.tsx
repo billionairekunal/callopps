@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { IDLE_KEY, idleExpired, latestActivity } from "@/lib/auth/idle";
+import { readPending, writePending } from "@/components/calls/callStore";
 
 const read = () => { try { return localStorage.getItem(IDLE_KEY); } catch { return null; } };
 const write = (t: number) => { try { localStorage.setItem(IDLE_KEY, String(t)); } catch { /* storage blocked: this tab only */ } };
@@ -18,8 +19,10 @@ export function IdleSignOut({ minutes }: { minutes: number }) {
     const events = ["pointerdown", "keydown", "visibilitychange", "scroll"] as const;
     events.forEach((e) => window.addEventListener(e, touch, { passive: true }));
     const timer = setInterval(async () => {
+      if (readPending()) return; // never sign out in the middle of a call
       if (!idleExpired(latestActivity(last, read()), Date.now(), minutes)) return;
       clearInterval(timer);
+      writePending(null);
       await createClient().auth.signOut({ scope: "local" });
       window.location.assign("/login?idle=1");
     }, 30_000);
