@@ -1,6 +1,12 @@
 /** Decoded byte length of a base64 string, without Node's Buffer (this also runs in edge middleware). */
 const b64Bytes = (s: string) => { try { return atob(s.trim()).length; } catch { return -1; } };
 
+/** Public https address: NEXT_PUBLIC_SITE_URL, else the production domain Vercel sets automatically. */
+export function siteUrl(env: Record<string, string | undefined> = process.env) {
+  const v = env.NEXT_PUBLIC_SITE_URL?.trim() || (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : "");
+  return (v || "http://localhost:3000").replace(/\/$/, "");
+}
+
 /** Configuration problems, as plain sentences that name settings but never show their values. Empty means ready. */
 export function checkEnv(env: Record<string, string | undefined>, production: boolean): string[] {
   const out: string[] = [];
@@ -8,7 +14,7 @@ export function checkEnv(env: Record<string, string | undefined>, production: bo
     if (!env[k]?.trim()) out.push(`${k} is missing`);
   if (env.CALLOPPS_MASTER_KEY?.trim() && b64Bytes(env.CALLOPPS_MASTER_KEY) !== 32)
     out.push("CALLOPPS_MASTER_KEY must be 32 bytes, base64-encoded");
-  if (production && !/^https:\/\/[^/]+/.test(env.NEXT_PUBLIC_SITE_URL ?? ""))
+  if (production && !/^https:\/\/[^/]+/.test(siteUrl(env)))
     out.push("NEXT_PUBLIC_SITE_URL must be the public https address, e.g. https://app.example.com (invite emails link to it)");
   return out;
 }

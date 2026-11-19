@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { checkEnv } from "@/lib/env";
+import { checkEnv, siteUrl } from "@/lib/env";
 
 const KEY = Buffer.alloc(32, 7).toString("base64");
 const ok = {
@@ -31,4 +31,10 @@ test("the master key check works without Node's Buffer (middleware runs on the e
   // @ts-expect-error simulate the edge runtime
   globalThis.Buffer = undefined;
   try { expect(checkEnv(ok, true)).toEqual([]); } finally { globalThis.Buffer = B; }
+});
+
+test("falls back to Vercel's production domain for the site address", () => {
+  const { NEXT_PUBLIC_SITE_URL: _d, ...rest } = ok; void _d;
+  expect(checkEnv({ ...rest, VERCEL_PROJECT_PRODUCTION_URL: "callopps.vercel.app" }, true)).toEqual([]);
+  expect(siteUrl({ VERCEL_PROJECT_PRODUCTION_URL: "callopps.vercel.app" })).toBe("https://callopps.vercel.app");
 });

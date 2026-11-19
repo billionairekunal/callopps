@@ -3,8 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Session } from "@/lib/auth/roles";
 import type { Repo } from "./service";
+import { siteUrl } from "@/lib/env";
 
-const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"; // production requires it (src/lib/env.ts)
 const ok = <T>(r: { data: T; error: { message: string } | null }) => { if (r.error) throw new Error(r.error.message); return r.data; };
 
 /** Setup tables go through the user's RLS client (database re-checks role + org); profiles/auth use the service client scoped to the org. */
