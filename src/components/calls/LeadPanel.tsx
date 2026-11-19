@@ -4,6 +4,7 @@ import { StatusBadge } from "@/components/leads/StatusBadge";
 import { fmtDateTime } from "@/lib/calls/time";
 import type { LeadDetail } from "@/lib/leads/queries";
 import { CallButton } from "./CallButton";
+import { MessageButtons } from "@/components/comms/MessageButtons";
 
 /** The caller's view of one lead: what they need before and after dialling. */
 export function LeadPanel({ lead: l, canCall, closeHref }: { lead: LeadDetail; canCall: boolean; closeHref: string }) {
@@ -21,7 +22,12 @@ export function LeadPanel({ lead: l, canCall, closeHref }: { lead: LeadDetail; c
         <Link href={closeHref} aria-label="Close" className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X className="size-4" /></Link>
       </div>
       <div className="space-y-4 p-4">
-        {canCall && <CallButton size="lg" lead={{ id: l.id, name: l.name, process_id: l.processId }} />}
+        {canCall && (
+          <div className="flex flex-wrap items-center gap-2">
+            <CallButton size="lg" lead={{ id: l.id, name: l.name, process_id: l.processId }} />
+            <MessageButtons leadId={l.id} leadName={l.name} />
+          </div>
+        )}
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
           {([["Process", l.process], ["Product / course", l.product], ["Lead type", l.leadType], ["Disposition", l.disposition],
             ["Next follow-up", l.next_followup_at ? fmtDateTime(l.next_followup_at) : null], ["Source", l.source]] as const).map(([k, v]) => (

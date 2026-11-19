@@ -6,7 +6,7 @@ import { getLead } from "@/lib/leads/queries";
 import { StatusBadge } from "@/components/leads/StatusBadge";
 
 const fmt = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" });
-const DOT: Record<string, string> = { call: "bg-emerald-500", created: "bg-sky-500", status: "bg-amber-500", transfer: "bg-violet-500", note: "bg-slate-400" };
+const DOT: Record<string, string> = { message: "bg-teal-500", call: "bg-emerald-500", created: "bg-sky-500", status: "bg-amber-500", transfer: "bg-violet-500", note: "bg-slate-400" };
 
 export default async function LeadPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireRole("super_admin", "admin", "team_leader");

@@ -103,7 +103,8 @@ export async function getLead(session: Session, id: string): Promise<LeadDetail 
     ...(ev.data ?? []).filter((e) => e.type !== "transfer" && e.type !== "call_started").map((e) => ({
       at: e.at, kind: e.type, actor: who(e.actor_id),
       text: e.type === "created" ? `Lead created${e.payload?.via === "import" ? ` from import “${e.payload.source ?? ""}”` : " by hand"}`
-        : e.type === "note" ? String(e.payload?.text ?? "") : e.type === "call" ? callText(e.payload ?? {}) : e.type.replace(/_/g, " "),
+        : e.type === "note" ? String(e.payload?.text ?? "") : e.type === "call" ? callText(e.payload ?? {})
+        : e.type === "message" ? `${e.payload?.channel === "whatsapp" ? "WhatsApp" : "SMS"} opened — “${String(e.payload?.body ?? "")}”` : e.type.replace(/_/g, " "),
     })),
     ...(hist.data ?? []).filter((h) => h.from_status).map((h) => ({
       at: h.at, kind: "status", actor: who(h.actor_id),
