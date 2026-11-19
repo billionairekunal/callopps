@@ -7,11 +7,9 @@ const s = (role: Session["role"], aal: Session["aal"] = "aal2"): Session =>
 test("caller hitting admin action → forbidden", () => {
   expect(() => decideAccess({ hasUser: true, session: s("caller", "aal1") }, ["super_admin", "admin"])).toThrow("forbidden");
 });
-test("admin at aal1 → aal2 required", () => {
-  expect(() => decideAccess({ hasUser: true, session: s("admin", "aal1") }, ["admin"])).toThrow("aal2 required");
-});
-test("super_admin at aal1 → aal2 required", () => {
-  expect(() => decideAccess({ hasUser: true, session: s("super_admin", "aal1") }, [])).toThrow("aal2 required");
+test("admins get in with a password only (two-step sign-in is off)", () => {
+  expect(decideAccess({ hasUser: true, session: s("admin", "aal1") }, ["admin"]).role).toBe("admin");
+  expect(decideAccess({ hasUser: true, session: s("super_admin", "aal1") }, []).role).toBe("super_admin");
 });
 test("admin at aal2 passes", () => {
   expect(decideAccess({ hasUser: true, session: s("admin") }, ["admin"]).role).toBe("admin");
@@ -29,5 +27,5 @@ test("no profile / deactivated → not-set-up", () => {
   expect(() => decideAccess({ hasUser: true, session: null }, [])).toThrow("not-set-up");
 });
 test("needsMfa", () => {
-  expect([needsMfa("super_admin"), needsMfa("admin"), needsMfa("team_leader"), needsMfa("caller")]).toEqual([true, true, false, false]);
+  expect([needsMfa("super_admin"), needsMfa("admin"), needsMfa("team_leader"), needsMfa("caller")]).toEqual([false, false, false, false]); // two-step sign-in is off
 });

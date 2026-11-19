@@ -21,19 +21,15 @@ test("caller on a management route gets a 403 rewrite, including sub-paths", () 
   expect(routeDecision("/leads/123", "u", caller, aal("aal1"))).toEqual({ forbidden: true });
   expect(routeDecision("/my-tasks", "u", caller, aal("aal1"))).toEqual({ next: true });
 });
-test("admin with an enrolled factor at aal1 must pass MFA before set-password", () => {
-  expect(routeDecision("/set-password", "u", admin, aal("aal1", "aal2"))).toEqual({ redirect: "/mfa" });
-  expect(routeDecision("/reports", "u", admin, aal("aal1", "aal2"))).toEqual({ redirect: "/mfa" });
-});
-test("newly invited admin (no factor yet) may set a password first", () => {
+test("admins are never sent to the code page (two-step sign-in is off)", () => {
+  expect(routeDecision("/reports", "u", admin, aal("aal1", "aal2"))).toEqual({ next: true });
   expect(routeDecision("/set-password", "u", admin, aal("aal1", "aal1"))).toEqual({ next: true });
-  expect(routeDecision("/reports", "u", admin, aal("aal1", "aal1"))).toEqual({ redirect: "/mfa" });
 });
 test("signed-in users on auth pages go home", () => {
   expect(routeDecision("/login", "u", caller, aal("aal1"))).toEqual({ redirect: "/my-tasks" });
   expect(routeDecision("/mfa", "u", admin, aal("aal2"))).toEqual({ redirect: "/reports" });
   expect(routeDecision("/", "u", admin, aal("aal2"))).toEqual({ redirect: "/reports" });
-  expect(routeDecision("/mfa", "u", admin, aal("aal1", "aal2"))).toEqual({ next: true });
+  expect(routeDecision("/mfa", "u", admin, aal("aal1", "aal2"))).toEqual({ redirect: "/reports" });
 });
 
 test("the health check is public (uptime monitors aren't signed in)", () => {

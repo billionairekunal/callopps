@@ -30,7 +30,7 @@ export async function login(_: LoginState, form: FormData): Promise<LoginState> 
   const { data: p } = await createAdminClient().from("profiles").select("org_id, role").eq("user_id", data.user.id).maybeSingle();
   await logAudit("auth.login", "user", data.user.id, {}, { orgId: p?.org_id ?? null, userId: data.user.id });
   // Go straight to the real next page: a server-action redirect that middleware re-redirects leaves a stale URL.
-  redirect(p?.role === "super_admin" || p?.role === "admin" ? "/mfa" : p?.role === "caller" ? "/my-tasks" : "/reports");
+  redirect(p?.role === "caller" ? "/my-tasks" : "/reports");
 }
 
 export async function logout() {

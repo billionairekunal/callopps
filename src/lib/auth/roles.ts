@@ -10,7 +10,8 @@ export class AuthError extends Error {
 export const ROLE_LABEL: Record<Role, string> = {
   super_admin: "Super Admin", admin: "Admin", team_leader: "Team Leader", caller: "Caller",
 };
-export const needsMfa = (role: Role) => role === "super_admin" || role === "admin";
+// ponytail: two-step sign-in is off by the owner's choice; return `role === "super_admin" || role === "admin"` to require it again (plus a DB migration, see 20261119000022_no_mfa.sql).
+export const needsMfa = (_role: Role) => false;
 
 /** Pure access decision. `roles` empty = any signed-in, set-up user. MFA is checked before role. */
 export function decideAccess(input: { hasUser: boolean; session: Session | null }, roles: Role[]): Session {
