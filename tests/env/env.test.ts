@@ -17,3 +17,18 @@ test("development only needs the Supabase keys and master key", () => {
   const { NEXT_PUBLIC_SITE_URL: _drop, ...dev } = ok; void _drop;
   expect(checkEnv(dev, false)).toEqual([]);
 });
+
+test("the setup page names what's missing and never shows a value", async () => {
+  const { setupPage } = await import("@/lib/env");
+  const html = setupPage(checkEnv({ ...ok, SUPABASE_SERVICE_ROLE_KEY: "", CALLOPPS_MASTER_KEY: "c2hvcnQ=" }, true));
+  expect(html).toContain("SUPABASE_SERVICE_ROLE_KEY is missing");
+  expect(html).toContain("CALLOPPS_MASTER_KEY must be 32 bytes");
+  expect(html).not.toContain("c2hvcnQ=");
+  expect(html).toContain("Redeploy");
+});
+test("the master key check works without Node's Buffer (middleware runs on the edge)", () => {
+  const B = globalThis.Buffer;
+  // @ts-expect-error simulate the edge runtime
+  globalThis.Buffer = undefined;
+  try { expect(checkEnv(ok, true)).toEqual([]); } finally { globalThis.Buffer = B; }
+});

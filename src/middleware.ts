@@ -2,8 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { routeDecision } from "@/lib/auth/route";
 import type { Role } from "@/lib/auth/roles";
+import { checkEnv, setupPage } from "@/lib/env";
 
 export async function middleware(req: NextRequest) {
+  // A misconfigured deployment explains itself instead of crashing every page with a bare 500.
+  const problems = checkEnv(process.env, process.env.NODE_ENV === "production" && process.env.CALLOPPS_SKIP_ENV_CHECK !== "1");
+  if (problems.length) return new NextResponse(setupPage(problems), { status: 503, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
   let res = NextResponse.next({ request: req });
   const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: {
