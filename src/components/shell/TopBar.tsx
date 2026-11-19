@@ -59,9 +59,9 @@ export function TopBar({ role, fullName, attendance }: { role: Role; fullName: s
       <button onClick={() => setSearch(true)}
         className="mx-auto flex w-full max-w-md items-center gap-2 rounded-full border border-rose-200 bg-white px-4 py-1.5 text-sm text-slate-400 shadow-sm hover:border-rose-300">
         <Search className="size-4 text-slate-500" />
-        <span className="font-medium text-slate-700">Global Search</span>
+        <span className="hidden font-medium text-slate-700 sm:inline">Global Search</span><span className="font-medium text-slate-700 sm:hidden">Search</span>
         <span className="hidden truncate sm:inline">Search leads…</span>
-        <kbd className="ml-auto rounded border border-rose-200 px-1.5 text-[10px] text-rose-500">Ctrl K</kbd>
+        <kbd className="ml-auto hidden rounded border border-rose-200 px-1.5 text-[10px] text-rose-500 sm:inline">Ctrl K</kbd>
       </button>
       {attendance && <PunchChip a={attendance} />}
       <button className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100" aria-label="Notifications">

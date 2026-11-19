@@ -22,12 +22,16 @@ export function MessageButtons({ leadId, leadName }: { leadId: string; leadName:
     const r = await messageTemplates(leadId, c);
     setTpls(r.ok ? r.data : []);
   });
-  const send = () => start(async () => {
+  const send = () => {
+    // Browsers only allow a new window during the click itself, so open it now and point it at WhatsApp once logged.
+    const win = channel === "whatsapp" ? window.open("about:blank", "_blank") : null;
+    start(async () => {
     const r = await openMessage({ leadId, channel, templateId: tpl || null, body });
-    if (!r.ok) return void toast.error(r.error);
-    window.open(r.data.url, "_blank", "noopener");
+    if (!r.ok) { win?.close(); return void toast.error(r.error); }
+    if (win) win.location.href = r.data.url; else window.location.href = r.data.url;
     toast.success(`${LABEL[channel!]} opened and logged`); setChannel(null);
-  });
+    });
+  };
   return (
     <>
       <div className="flex gap-2">
