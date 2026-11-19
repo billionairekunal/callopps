@@ -30,4 +30,5 @@ export const inviteSchema = z.object({
 export const orgSettingsSchema = z.object({
   name,
   idle_timeout_minutes: z.number().int().min(5).max(240),
+  ai_enabled: z.boolean().optional(),
 });

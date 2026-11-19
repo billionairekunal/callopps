@@ -46,7 +46,7 @@ test("demoting last super_admin → error 'last super admin'", async () => {
 test("only super_admin changes roles or org settings", async () => {
   const { c } = ctx("admin");
   await expect(svc.changeUserRole(c, "x", "caller")).rejects.toThrow("forbidden");
-  await expect(svc.updateOrgSettings(c, { name: "C", idle_timeout_minutes: 30 })).rejects.toThrow("forbidden");
+  await expect(svc.updateOrgSettings(c, { name: "C", idle_timeout_minutes: 30, ai_enabled: false })).rejects.toThrow("forbidden");
 });
 test("admin cannot deactivate a super_admin or admin", async () => {
   const { c } = ctx("admin", { getProfile: vi.fn(async () => ({ role: "admin" as Role, status: "active" as const })) });
@@ -66,7 +66,7 @@ test("every write action writes an audit row", async () => {
   await svc.setTeamProcesses(c, pid, [pid]);
   await svc.setUserStatus(c, "x", "deactivated");
   await svc.changeUserRole(c, "x", "team_leader");
-  await svc.updateOrgSettings(c, { name: "C", idle_timeout_minutes: 45 });
+  await svc.updateOrgSettings(c, { name: "C", idle_timeout_minutes: 45, ai_enabled: true });
   expect((audit.mock.calls as unknown[][]).map((a) => a[0])).toEqual([
     "setup.processes.save", "setup.processes.delete", "setup.dispositions.save", "setup.team_processes.save",
     "setup.user.status", "setup.user.role", "setup.org.update",

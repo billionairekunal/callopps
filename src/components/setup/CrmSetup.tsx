@@ -20,7 +20,7 @@ import { useAction } from "./useAction";
 type Named = { id: string; name: string };
 export type SetupData = {
   me: { userId: string; role: Role };
-  org: { name: string; idle_timeout_minutes: number };
+  org: { name: string; idle_timeout_minutes: number; ai_enabled: boolean };
   users: { user_id: string; full_name: string; email: string; role: Role; team_id: string | null; status: "active" | "deactivated" }[];
   teams: (Named & { team_leader_id: string | null })[];
   teamProcesses: { team_id: string; process_id: string }[];
@@ -284,13 +284,18 @@ function Security({ data, isSuper }: { data: SetupData; isSuper: boolean }) {
     <div className="grid gap-6 lg:grid-cols-2">
       <Section title="Organisation & security" hint={isSuper ? undefined : "Only a Super Admin can change these."}>
         <form className="space-y-4 rounded-xl border bg-white p-5 shadow-sm" action={async (f) => {
-          await run(() => updateOrgSettings({ name: f.get("name"), idle_timeout_minutes: Number(f.get("idle")) }), "Settings saved");
+          await run(() => updateOrgSettings({ name: f.get("name"), idle_timeout_minutes: Number(f.get("idle")), ai_enabled: f.get("ai") === "on" }), "Settings saved");
         }}>
           <div className="space-y-1.5"><Label htmlFor="org-name">Centre name</Label>
             <Input id="org-name" name="name" defaultValue={data.org.name} disabled={!isSuper} required /></div>
           <div className="space-y-1.5"><Label htmlFor="idle">Sign out after idle (minutes)</Label>
             <Input id="idle" name="idle" type="number" min={5} max={240} defaultValue={data.org.idle_timeout_minutes} disabled={!isSuper} required />
             <p className="text-xs text-slate-500">Between 5 and 240.</p></div>
+          <label className="flex items-start gap-2.5 text-sm">
+            <input type="checkbox" name="ai" defaultChecked={data.org.ai_enabled} disabled={!isSuper} className="mt-0.5 accent-rose-600" />
+            <span><span className="font-medium text-slate-900">Turn on Ops AI</span><br />
+              <span className="text-xs text-slate-500">Sends report totals (counts, rates, agent names) to Claude to answer questions. Never phone numbers, emails or customer names. Changes are logged.</span></span>
+          </label>
           {isSuper && <Button type="submit" disabled={pending}>Save</Button>}
         </form>
       </Section>

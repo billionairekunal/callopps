@@ -8,7 +8,7 @@ export default async function CrmSetupPage() {
   const me = await requireRole("super_admin", "admin");
   const db = await createClient();
   const [org, profiles, teams, tp, processes, categories, products, leadTypes, dispositions] = await Promise.all([
-    db.from("orgs").select("name, idle_timeout_minutes").single(),
+    db.from("orgs").select("name, idle_timeout_minutes, ai_enabled").single(),
     db.from("profiles").select("user_id, full_name, role, team_id, status").order("full_name"),
     db.from("teams").select("id, name, team_leader_id").order("name"),
     db.from("team_processes").select("team_id, process_id"),
@@ -24,7 +24,7 @@ export default async function CrmSetupPage() {
 
   const data: SetupData = {
     me: { userId: me.userId, role: me.role },
-    org: org.data ?? { name: "", idle_timeout_minutes: 30 },
+    org: org.data ?? { name: "", idle_timeout_minutes: 30, ai_enabled: false },
     users: (profiles.data ?? []).map((p) => ({ ...p, email: emails.get(p.user_id) ?? "" })) as SetupData["users"],
     teams: teams.data ?? [], teamProcesses: tp.data ?? [], processes: processes.data ?? [],
     categories: categories.data ?? [], products: products.data ?? [], leadTypes: leadTypes.data ?? [],
