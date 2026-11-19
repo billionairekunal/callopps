@@ -33,7 +33,6 @@ export async function runReport(s: Session, f: ReportFilters, withIds = false) {
   } });
   if (error) { console.error("report_data", error.message); throw new Error("Could not build the report. Try again."); }
   const raw = data as RawReport;
-  raw.agents.forEach((a) => { a.whatsapp_sent = 0; }); // ponytail: WhatsApp actions arrive with Communications (Phase 5)
 
   const months = [...new Set(raw.daily.map((d) => d.day.slice(0, 7) + "-01"))];
   const { data: t } = raw.agents.length && months.length

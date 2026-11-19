@@ -44,7 +44,7 @@ export function TargetsGrid({ month, rows: initial }: { month: string; rows: Row
           </table>
         </div>
       )}
-      <p className="border-t px-4 py-2 text-xs text-slate-500">Monthly targets. Reports pro-rate them by the days of the selected range. WhatsApp Sent counts start with Communications.</p>
+      <p className="border-t px-4 py-2 text-xs text-slate-500">Monthly targets. Reports pro-rate them by the days of the selected range. </p>
     </div>
   );
 }
