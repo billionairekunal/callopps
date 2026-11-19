@@ -15,6 +15,9 @@ export function TrendChart({ data }: { data: Point[] }) {
   const y = (v: number) => T + (H - T - B) * (1 - v / nice);
   const step = Math.max(1, Math.ceil(data.length / 8));
   const h = hover == null ? null : data[hover];
+  // End labels: keep them at least 12px apart so equal values don't overprint.
+  const ends = SERIES.map((s) => y(data[data.length - 1][s.key]));
+  if (Math.abs(ends[0] - ends[1]) < 12) ends[1] = ends[0] + (ends[1] >= ends[0] && ends[0] + 12 <= H - B ? 12 : -12);
   return (
     <div className="relative">
       <div className="mb-2 flex gap-4 text-xs text-slate-600">
@@ -29,11 +32,11 @@ export function TrendChart({ data }: { data: Point[] }) {
         ))}
         {data.map((d, i) => i % step === 0 && <text key={d.day} x={x(i)} y={H - 8} textAnchor="middle" className="fill-slate-400 text-[10px]">{d.day.slice(8)}/{d.day.slice(5, 7)}</text>)}
         {hover != null && <line x1={x(hover)} x2={x(hover)} y1={T} y2={H - B} stroke="#94a3b8" strokeWidth={1} />}
-        {SERIES.map((s) => (
+        {SERIES.map((s, si) => (
           <g key={s.key}>
             <polyline fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" points={data.map((d, i) => `${x(i)},${y(d[s.key])}`).join(" ")} />
             {hover != null && <circle cx={x(hover)} cy={y(data[hover][s.key])} r={4} fill={s.color} stroke="white" strokeWidth={2} />}
-            <text x={x(data.length - 1) + 8} y={y(data[data.length - 1][s.key]) + 4} className="fill-slate-600 text-[11px]">{s.label}</text>
+            <text x={x(data.length - 1) + 8} y={ends[si] + 4} className="fill-slate-600 text-[11px]">{s.label}</text>
           </g>
         ))}
         {data.map((d, i) => (
