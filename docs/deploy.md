@@ -57,6 +57,9 @@ on this computer.
    Never put `SUPABASE_ACCESS_TOKEN` in Vercel. If a required value is missing, the app refuses to start and the
    Vercel log says which one.
 3. Deploy, then add your domain (Settings → Domains) and the DNS record Vercel shows.
+   **Add the variables before the first deploy.** The `NEXT_PUBLIC_…` values are built into the app when Vercel
+   builds it. If a deploy ran without them, add them and use Deployments → ⋯ → **Redeploy**. Changing the variables
+   alone doesn't update a build that already ran.
 
 ## 4. First centre (owner + builder, ~5 min)
 

@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 type Stage = { kind: "loading" } | { kind: "enroll"; factorId: string; qr: string; secret: string } | { kind: "verify"; factorId: string };
 
 export function MfaForm() {
-  const supabase = createClient();
+  // Created on use, in the browser: creating it during render breaks the build-time pre-render of /mfa.
+  const supabase = { get auth() { return createClient().auth; } };
   const [stage, setStage] = useState<Stage>({ kind: "loading" });
   const [code, setCode] = useState("");
   const [error, setError] = useState<string>();
