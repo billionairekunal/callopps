@@ -49,10 +49,15 @@ export async function purgeCustomerData(typed: string) {
     const admin = createAdminClient();
     const { data: org } = await admin.from("orgs").select("name").eq("id", s.orgId).single();
     if (!org || !purgeConfirmed(String(typed ?? ""), org.name)) throw new Error(`Type DELETE ${org?.name ?? ""} exactly to confirm.`);
-    const { data, error } = await admin.rpc("purge_org_data", { org: s.orgId });
-    if (error) throw new Error("Delete failed. Nothing was removed.");
-    await logAudit("data.purge", "orgs", s.orgId, data as Record<string, unknown>);
+    let leads = 0;
+    for (let i = 0; i < 1000; i++) { // 1,000 leads per short request; resumable if the page is closed
+      const { data, error } = await admin.rpc("purge_org_batch", { org: s.orgId, batch: 1000, actor: s.userId });
+      if (error) throw new Error(`Delete stopped after ${leads.toLocaleString("en-IN")} leads. Run it again to finish.`);
+      const r = data as { deleted: number; remaining: number };
+      leads += r.deleted;
+      if (r.remaining === 0) break;
+    }
     revalidatePath("/", "layout");
-    return data as { leads: number };
+    return { leads };
   });
 }

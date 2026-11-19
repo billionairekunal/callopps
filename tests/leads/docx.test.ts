@@ -30,3 +30,21 @@ test("a list split across tables with the same header becomes one list; otherwis
 test("a document without tables is explained", async () => {
   await expect(docxGrid(await docx("<w:p/>"))).rejects.toThrow(/no table/i);
 });
+
+test("a lead table inside a layout table keeps every row", async () => {
+  const inner = table(row(cell("Name"), cell("Mobile")), row(cell("A"), cell("1")), row(cell("B"), cell("2")), row(cell("C"), cell("3")));
+  const outer = `<w:tbl><w:tblPr/>${row(cell("Letterhead"))}<w:tr><w:tc><w:p/>${inner}</w:tc></w:tr></w:tbl>`;
+  expect(await docxGrid(await docx(outer))).toEqual([["Name", "Mobile"], ["A", "1"], ["B", "2"], ["C", "3"]]);
+});
+test("vertically merged cells repeat the value above; gridBefore keeps columns aligned", async () => {
+  const vm = (t: string, start: boolean) => `<w:tc><w:tcPr><w:vMerge${start ? ' w:val="restart"' : ""}/></w:tcPr><w:p>${t ? `<w:r><w:t>${t}</w:t></w:r>` : ""}</w:p></w:tc>`;
+  const xml = `<w:tbl w:rsid="1">${row(cell("Name"), cell("City"))}${row(cell("A"), vm("Pune", true))}${row(cell("B"), vm("", false))}` +
+    `<w:tr><w:trPr><w:gridBefore w:val="1"/></w:trPr>${cell("Mumbai")}</w:tr></w:tbl>`;
+  expect(await docxGrid(await docx(xml))).toEqual([["Name", "City"], ["A", "Pune"], ["B", "Pune"], ["", "Mumbai"]]);
+});
+test("tables nested two levels deep don't corrupt the outer table", async () => {
+  const deep = table(row(cell("Name"), cell("Mobile")), row(cell("A"), cell("1")), row(cell("B"), cell("2")));
+  const mid = `<w:tbl>${row(cell("x"))}<w:tr><w:tc>${deep}</w:tc></w:tr></w:tbl>`;
+  const outer = `<w:tbl>${row(cell("top"))}<w:tr><w:tc>${mid}</w:tc></w:tr>${row(cell("bottom"))}</w:tbl>`;
+  expect(await docxGrid(await docx(outer))).toEqual([["Name", "Mobile"], ["A", "1"], ["B", "2"]]);
+});

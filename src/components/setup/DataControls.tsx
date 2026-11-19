@@ -13,7 +13,7 @@ export function DataControls({ orgName }: { orgName: string }) {
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [pending, start] = useTransition();
-  const phrase = `DELETE ${orgName}`;
+  const phrase = `DELETE ${orgName.trim()}`;
 
   async function exportAll() {
     setExporting(true);
@@ -36,7 +36,7 @@ export function DataControls({ orgName }: { orgName: string }) {
       </div>
       <div className="border-t pt-4">
         <p className="font-medium text-rose-700">Delete all customer data</p>
-        <p className="mb-2 text-xs text-slate-500">Permanently removes every lead and everything about them: calls, messages, timelines, QA audits and imports. Users, teams and setup stay. Export first.</p>
+        <p className="mb-2 text-xs text-slate-500">Permanently removes every lead and everything about them: calls, WhatsApp/SMS logs, timelines, QA audits and imports. Users, teams, setup, saved reports and internal chat stay. Export first.</p>
         <Button variant="outline" size="sm" className="border-rose-300 text-rose-700 hover:bg-rose-50" onClick={() => { setTyped(""); setOpen(true); }}><Trash2 className="size-4" />Delete customer data…</Button>
       </div>
       <Dialog open={open} onOpenChange={(o) => !pending && setOpen(o)}>

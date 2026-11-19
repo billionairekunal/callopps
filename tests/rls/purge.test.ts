@@ -17,9 +17,13 @@ describe.skipIf(!enabled)("purge_org_data", () => {
   afterAll(cleanup, 60_000);
 
   test("deletes one centre's customer data only, keeps setup, and is server-only", async () => {
-    expect((await ca.client.rpc("purge_org_data", { org: a })).error).toBeTruthy();
-    const { data } = await admin().rpc("purge_org_data", { org: a });
-    expect(data).toEqual({ leads: 3 });
+    expect((await ca.client.rpc("purge_org_batch", { org: a, batch: 2, actor: ca.id })).error).toBeTruthy();
+    // Small batches, each its own short statement, until nothing is left; the last call writes the audit row.
+    const first = (await admin().rpc("purge_org_batch", { org: a, batch: 2, actor: ca.id })).data;
+    expect(first).toEqual({ deleted: 2, remaining: 1 });
+    expect((await admin().rpc("purge_org_batch", { org: a, batch: 2, actor: ca.id })).data).toEqual({ deleted: 1, remaining: 0 });
+    const audit = (await admin().from("audit_log").select("action, meta").eq("org_id", a).eq("action", "data.purge")).data ?? [];
+    expect(audit).toHaveLength(1);
     const count = async (t: string, org: string) => (await admin().from(t).select("*", { count: "exact", head: true }).eq("org_id", org)).count;
     expect([await count("leads", a), await count("calls", a), await count("lead_events", a)]).toEqual([0, 0, 0]);
     expect(await count("processes", a)).toBe(1);
