@@ -163,8 +163,8 @@ export function ImportWizard({ processes, people }: { processes: Named[]; people
             onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { setFile(f); if (!sourceName) setSourceName(f.name.replace(/\.[^.]+$/, "")); } }}>
             {file ? <FileSpreadsheet className="size-10 text-emerald-600" /> : <UploadCloud className="size-10 text-slate-400" />}
             <span className="text-sm font-medium text-slate-800">{file ? file.name : "Drop your lead file here, or click to choose"}</span>
-            <span className="text-xs text-slate-500">CSV or Excel (.xlsx), up to {MAX_FILE_MB} MB. Any columns, any order.</span>
-            <input type="file" accept=".csv,.xlsx,.txt" className="sr-only"
+            <span className="text-xs text-slate-500">CSV, Excel (.xlsx) or a Word table (.docx), up to {MAX_FILE_MB} MB. Any columns, any order.</span>
+            <input type="file" accept=".csv,.xlsx,.txt,.docx" className="sr-only"
               onChange={(e) => { const f = e.target.files?.[0] ?? null; setFile(f); if (f && !sourceName) setSourceName(f.name.replace(/\.[^.]+$/, "")); }} />
           </label>
           <div className="space-y-4">
